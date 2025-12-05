@@ -4,20 +4,20 @@ A full-stack materials characterization platform for researchers. Helps with sto
 
 ## What it does
 
-- **Stoichiometry Calculator**: Calculate exact masses needed for compound synthesis
-- **XRD Analysis**: Upload XRD data files and automatically detect peaks using SciPy
-- **Magnetic Properties**: Extract Ms, Hc, Mr from M-H loops
-- **User Accounts**: JWT auth with MongoDB for saving calculations
+- Stoichiometry Calculator: Calculate exact masses needed for compound synthesis
+- XRD Analysis: Upload XRD data files and automatically detect peaks using SciPy
+- Magnetic Properties: Extract Ms, Hc, Mr from M-H loops
+- User Accounts: JWT auth with MongoDB for saving calculations
 
 ## Tech Stack
 
-**Backend:**
+Backend:
 - FastAPI (Python)
 - MongoDB with Motor (async driver)
 - NumPy/SciPy for data processing
 - JWT for authentication
 
-**Frontend:**
+Frontend:
 - React
 - Lucide icons
 - Custom API client
@@ -29,7 +29,7 @@ A full-stack materials characterization platform for researchers. Helps with sto
 ```bash
 cd elementx-backend
 python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
+source venv/bin/activate
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
