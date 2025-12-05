@@ -13,23 +13,20 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 import re
 
-# ====================== FASTAPI SETUP ======================
 app = FastAPI(title="ElementX Python Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Changed from localhost only - adjust for production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ====================== DATABASE ======================
 client = AsyncIOMotorClient(
     os.getenv("MONGODB_URI", "mongodb+srv://elemntx:elementx123@elementx.8jn92ay.mongodb.net/elementx"))
 db = client.elementx
 
-# ====================== AUTH ======================
 security = HTTPBearer()
 SECRET_KEY = os.getenv("JWT_SECRET", "superlongrandomkey1234567890")
 
@@ -127,7 +124,6 @@ async def login(data: LoginRequest):
         raise HTTPException(500, f"Login failed: {str(e)}")
 
 
-# ====================== SUPER ROBUST PARSER ======================
 def parse_raw_file(text: str):
     lines = text.splitlines()
     data = []
@@ -138,7 +134,6 @@ def parse_raw_file(text: str):
         if any(keyword in line.lower() for keyword in
                ['theta', 'angle', 'field', 'moment', 'temp', 'intensity', 'header', 'scan']):
             continue
-        # Split by any whitespace or comma
         values = re.split(r'[\s+,;]+', line)
         values = [v.strip() for v in values if v.strip()]
         if len(values) >= 2:
@@ -151,7 +146,6 @@ def parse_raw_file(text: str):
     return data
 
 
-# ====================== XRD UPLOAD ======================
 @app.post("/api/xrd/upload")
 async def upload_xrd(
         file: UploadFile = File(...),
@@ -193,7 +187,6 @@ async def upload_xrd(
         raise HTTPException(500, f"XRD upload failed: {str(e)}")
 
 
-# ====================== MAGNETIC UPLOAD ======================
 @app.post("/api/magnetic/upload")
 async def upload_magnetic(
         file: UploadFile = File(...),
@@ -241,7 +234,6 @@ async def upload_magnetic(
         raise HTTPException(500, f"Magnetic upload failed: {str(e)}")
 
 
-# ====================== HEALTH ======================
 @app.get("/health")
 def health():
     return {"status": "ElementX Python backend – FULLY WORKING", "backend": "Python + FastAPI + Deep Learning Ready"}
