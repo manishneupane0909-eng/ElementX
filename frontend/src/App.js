@@ -21,21 +21,46 @@ const ELEMENTS = {
 };
 
 function parseFormula(formula) {
-  const regex = /([A-Z][a-z]?)(\d*)/g;
+  // Supports integer or decimal stoichiometry, e.g. Mn1.5In0.5Sb
+  const regex = /([A-Z][a-z]?)(\d+(?:\.\d+)?|\.\d+)?/g;
   const composition = {};
   let match;
   if (!formula.trim()) throw new Error("Formula cannot be empty.");
 
   while ((match = regex.exec(formula))) {
     const element = match[1];
-    const count = match[2] ? parseInt(match[2]) : 1;
+    const count = match[2] ? parseFloat(match[2]) : 1;
     if (!ELEMENTS[element]) throw new Error(`Unknown element: ${element}`);
+    if (!Number.isFinite(count) || count <= 0) {
+      throw new Error(`Invalid stoichiometry for ${element}: "${match[2]}"`);
+    }
     composition[element] = (composition[element] || 0) + count;
   }
   if (Object.keys(composition).length === 0) {
     throw new Error("Invalid formula structure or no recognized elements.");
   }
   return composition;
+}
+
+const ELEMENT_NAME_ALIASES = {
+  // Common full-name inputs (and one common misspelling)
+  indium: 'In',
+  indeium: 'In',
+};
+
+function normalizeElementSymbol(input) {
+  const raw = String(input || '').trim();
+  if (!raw) return '';
+
+  // If user typed a full element name, map it.
+  const byName = ELEMENT_NAME_ALIASES[raw.toLowerCase()];
+  if (byName) return byName;
+
+  // If user typed symbol with wrong casing (e.g., "in" or "IN"), normalize.
+  if (raw.length === 1) return raw.toUpperCase();
+  if (raw.length === 2) return raw[0].toUpperCase() + raw[1].toLowerCase();
+
+  return raw;
 }
 
 function LoginForm({ onLogin }) {
@@ -312,18 +337,19 @@ function App() {
       return;
     }
 
-    if (!ELEMENTS[targetEl]) {
-      setError(`Target element symbol "${targetEl}" is not recognized.`);
+    const targetSymbol = normalizeElementSymbol(targetEl);
+    if (!ELEMENTS[targetSymbol]) {
+      setError(`Target element "${targetEl}" is not recognized. Use a symbol like "In" (Indium).`);
       return;
     }
 
-    if (!composition[targetEl]) {
-      setError(`Target element ${targetEl} not found in formula ${formula}.`);
+    if (!composition[targetSymbol]) {
+      setError(`Target element ${targetSymbol} not found in formula ${formula}.`);
       return;
     }
 
-    const elementAtomicMass = ELEMENTS[targetEl];
-    const elementStoich = composition[targetEl];
+    const elementAtomicMass = ELEMENTS[targetSymbol];
+    const elementStoich = composition[targetSymbol];
     const scaleFactor = mass / (elementAtomicMass * elementStoich);
 
     const elements = Object.entries(composition).map(([el, count]) => {
@@ -342,7 +368,7 @@ function App() {
     setResult({
       name: sampleName || formula,
       formula,
-      targetEl,
+      targetEl: targetSymbol,
       targetMass: mass,
       elements,
       total,
@@ -710,4 +736,185 @@ function App() {
                         onClick={copyResults}
                         style={{ padding: '8px 12px', background: '#4b5563', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
                       >
-                        <Copy size={16
+                        <Copy size={16} />
+                        Copy
+                      </button>
+                      <button
+                        onClick={exportToExcel}
+                        style={{ padding: '8px 12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
+                      >
+                        <Download size={16} />
+                        Export CSV
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc' }}>
+                        <th style={{ textAlign: 'left', padding: '10px', borderBottom: '1px solid #e2e8f0' }}>Element</th>
+                        <th style={{ textAlign: 'right', padding: '10px', borderBottom: '1px solid #e2e8f0' }}>Stoichiometry</th>
+                        <th style={{ textAlign: 'right', padding: '10px', borderBottom: '1px solid #e2e8f0' }}>Atomic Mass</th>
+                        <th style={{ textAlign: 'right', padding: '10px', borderBottom: '1px solid #e2e8f0' }}>Required Mass (g)</th>
+                        <th style={{ textAlign: 'right', padding: '10px', borderBottom: '1px solid #e2e8f0' }}>Weight %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.elements.map((e) => (
+                        <tr key={e.element}>
+                          <td style={{ padding: '10px', borderBottom: '1px solid #eef2f7' }}>{e.element}</td>
+                          <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #eef2f7' }}>{e.stoich}</td>
+                          <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #eef2f7' }}>{e.atomic.toFixed(3)}</td>
+                          <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #eef2f7' }}>{e.mass.toFixed(6)}</td>
+                          <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #eef2f7' }}>{((e.mass / result.total) * 100).toFixed(2)}%</td>
+                        </tr>
+                      ))}
+                      <tr>
+                        <td style={{ padding: '10px', fontWeight: '700' }}>Total</td>
+                        <td style={{ padding: '10px' }} />
+                        <td style={{ padding: '10px' }} />
+                        <td style={{ padding: '10px', textAlign: 'right', fontWeight: '700' }}>{result.total.toFixed(6)}</td>
+                        <td style={{ padding: '10px', textAlign: 'right', fontWeight: '700' }}>100.00%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'history' && (
+          <div style={cardStyle}>
+            <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#1a202c', marginBottom: '10px' }}>
+              Saved Samples
+            </h2>
+            <p style={{ color: '#64748b', marginTop: 0 }}>
+              These are stored locally in your browser for now.
+            </p>
+
+            {loading ? (
+              <div style={{ padding: '10px 0' }}>Loading…</div>
+            ) : history.length === 0 ? (
+              <div style={{ padding: '10px 0', color: '#64748b' }}>No saved samples yet.</div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
+                {history.slice().reverse().map((s) => (
+                  <div key={s.id} style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                      <div>
+                        <div style={{ fontWeight: '700', color: '#0f172a' }}>{s.name || s.formula}</div>
+                        <div style={{ fontSize: '13px', color: '#64748b' }}>{s.formula}</div>
+                        <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                          {s.createdAt ? new Date(s.createdAt).toLocaleString() : ''}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748b', textAlign: 'right' }}>
+                        Total: {Number(s.total || 0).toFixed(6)} g
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                      <button
+                        onClick={() => loadSample(s)}
+                        style={{ padding: '8px 10px', background: '#111827', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', flex: 1 }}
+                      >
+                        Load
+                      </button>
+                      <button
+                        onClick={() => deleteSample(s.id)}
+                        style={{ padding: '8px 10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'xrd' && (
+          <div style={cardStyle}>
+            <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#1a202c', marginBottom: '10px' }}>
+              XRD Analysis
+            </h2>
+            <p style={{ color: '#64748b', marginTop: 0 }}>
+              Upload a 2-column text file (angle vs intensity). This view parses locally.
+            </p>
+
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '10px', cursor: loading ? 'wait' : 'pointer' }}>
+                <Upload size={16} />
+                <span>Choose file</span>
+                <input type="file" accept=".txt,.csv" onChange={handleXRDUpload} disabled={loading} style={{ display: 'none' }} />
+              </label>
+              {xrdData?.filename && <div style={{ color: '#0f172a' }}>{xrdData.filename}</div>}
+            </div>
+
+            {xrdData ? (
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+                  <div><strong>Points:</strong> {xrdData.data.length}</div>
+                  <div><strong>Processed:</strong> {xrdData.processedDate}</div>
+                </div>
+                <div style={{ marginTop: '12px', fontSize: '13px', color: '#64748b' }}>
+                  Preview (first 8 points):
+                  <pre style={{ background: '#0b1220', color: '#e5e7eb', padding: '10px', borderRadius: '8px', overflowX: 'auto', marginTop: '8px' }}>
+                    {xrdData.data.slice(0, 8).map(p => `${p.angle}\t${p.intensity}`).join('\n')}
+                  </pre>
+                </div>
+              </div>
+            ) : (
+              <div style={{ color: '#64748b' }}>No XRD file loaded yet.</div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'mag' && (
+          <div style={cardStyle}>
+            <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#1a202c', marginBottom: '10px' }}>
+              Magnetic Properties
+            </h2>
+            <p style={{ color: '#64748b', marginTop: 0 }}>
+              Upload a 2-column text file (field vs moment). This view parses locally and estimates Ms/Hc.
+            </p>
+
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '10px', cursor: loading ? 'wait' : 'pointer' }}>
+                <Upload size={16} />
+                <span>Choose file</span>
+                <input type="file" accept=".txt,.csv" onChange={handleMagUpload} disabled={loading} style={{ display: 'none' }} />
+              </label>
+              {magData?.filename && <div style={{ color: '#0f172a' }}>{magData.filename}</div>}
+            </div>
+
+            {magData ? (
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                  <div><strong>Points:</strong> {magData.data.length}</div>
+                  <div><strong>Ms:</strong> {magData.Ms}</div>
+                  <div><strong>Hc:</strong> {magData.Hc}</div>
+                  <div><strong>Processed:</strong> {magData.processedDate}</div>
+                </div>
+                <div style={{ marginTop: '12px', fontSize: '13px', color: '#64748b' }}>
+                  Preview (first 8 points):
+                  <pre style={{ background: '#0b1220', color: '#e5e7eb', padding: '10px', borderRadius: '8px', overflowX: 'auto', marginTop: '8px' }}>
+                    {magData.data.slice(0, 8).map(p => `${p.field}\t${p.moment}`).join('\n')}
+                  </pre>
+                </div>
+              </div>
+            ) : (
+              <div style={{ color: '#64748b' }}>No magnetic file loaded yet.</div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default App;

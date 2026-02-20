@@ -12,6 +12,8 @@ from scipy.signal import find_peaks
 from datetime import datetime, timedelta
 from typing import Optional, List
 import re
+from dotenv import load_dotenv
+from uuid import uuid4
 
 app = FastAPI(title="ElementX Python Backend")
 
@@ -23,12 +25,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+load_dotenv()
+
+MONGODB_URI = os.getenv("MONGODB_URI") or "mongodb://localhost:27017/elementx"
 client = AsyncIOMotorClient(
-    os.getenv("MONGODB_URI", "mongodb+srv://elemntx:elementx123@elementx.8jn92ay.mongodb.net/elementx"))
-db = client.elementx
+    MONGODB_URI,
+    serverSelectionTimeoutMS=3000,
+    connectTimeoutMS=3000,
+)
+try:
+    db = client.get_default_database()
+except Exception:
+    db = client["elementx"]
+
+# MongoDB is OPTIONAL. If it's unreachable, we fall back to an in-memory store.
+DB_AVAILABLE = False
+_LOCAL_USERS_BY_EMAIL = {}  # email -> user dict with "_id" and "password" (bcrypt hash)
 
 security = HTTPBearer()
 SECRET_KEY = os.getenv("JWT_SECRET", "superlongrandomkey1234567890")
+
+@app.on_event("startup")
+async def _startup_check_db():
+    # Best-effort connectivity check so failures are obvious.
+    global DB_AVAILABLE
+    try:
+        await client.admin.command("ping")
+        DB_AVAILABLE = True
+        print("MongoDB: connected")
+    except Exception as e:
+        DB_AVAILABLE = False
+        print(f"MongoDB: NOT connected ({type(e).__name__}: {e})")
 
 
 class UserIn(BaseModel):
@@ -58,20 +85,36 @@ async def verify_token(cred: HTTPAuthorizationCredentials = Depends(security)):
 @app.post("/api/auth/register")
 async def register(user: UserIn):
     try:
-        if await db.users.find_one({"email": user.email}):
-            raise HTTPException(400, "Email already registered")
+        if DB_AVAILABLE:
+            if await db.users.find_one({"email": user.email}):
+                raise HTTPException(400, "Email already registered")
 
-        hashed = bcrypt.hashpw(user.password.encode(), bcrypt.gensalt())
-        result = await db.users.insert_one({
-            "name": user.name,
-            "institution": user.institution,
-            "email": user.email,
-            "password": hashed,
-            "createdAt": datetime.utcnow()
-        })
+            hashed = bcrypt.hashpw(user.password.encode(), bcrypt.gensalt())
+            result = await db.users.insert_one({
+                "name": user.name,
+                "institution": user.institution,
+                "email": user.email,
+                "password": hashed,
+                "createdAt": datetime.utcnow()
+            })
+            user_id = str(result.inserted_id)
+        else:
+            if user.email in _LOCAL_USERS_BY_EMAIL:
+                raise HTTPException(400, "Email already registered")
+
+            user_id = str(uuid4())
+            hashed = bcrypt.hashpw(user.password.encode(), bcrypt.gensalt())
+            _LOCAL_USERS_BY_EMAIL[user.email] = {
+                "_id": user_id,
+                "name": user.name,
+                "institution": user.institution,
+                "email": user.email,
+                "password": hashed,
+                "createdAt": datetime.utcnow(),
+            }
 
         token = jwt.encode({
-            "userId": str(result.inserted_id),
+            "userId": user_id,
             "email": user.email,
             "exp": datetime.utcnow() + timedelta(days=7)
         }, SECRET_KEY, algorithm="HS256")
@@ -80,7 +123,7 @@ async def register(user: UserIn):
             "message": "Success",
             "token": token,
             "user": {
-                "id": str(result.inserted_id),
+                "id": user_id,
                 "email": user.email,
                 "name": user.name
             }
@@ -95,15 +138,20 @@ async def register(user: UserIn):
 @app.post("/api/auth/login")
 async def login(data: LoginRequest):
     try:
-        user = await db.users.find_one({"email": data.email})
+        if DB_AVAILABLE:
+            user = await db.users.find_one({"email": data.email})
+        else:
+            user = _LOCAL_USERS_BY_EMAIL.get(data.email)
+
         if not user:
             raise HTTPException(401, "Invalid credentials")
 
         if not bcrypt.checkpw(data.password.encode(), user["password"]):
             raise HTTPException(401, "Invalid credentials")
 
+        user_id = str(user["_id"])
         token = jwt.encode({
-            "userId": str(user["_id"]),
+            "userId": user_id,
             "email": user["email"],
             "exp": datetime.utcnow() + timedelta(days=7)
         }, SECRET_KEY, algorithm="HS256")
@@ -112,7 +160,7 @@ async def login(data: LoginRequest):
             "message": "Login successful",
             "token": token,
             "user": {
-                "id": str(user["_id"]),
+                "id": user_id,
                 "email": user["email"],
                 "name": user["name"]
             }
@@ -169,17 +217,20 @@ async def upload_xrd(
         peaks, _ = find_peaks(intensities, prominence=0.02 * intensities.max(), distance=10)
         peak_list = [{"angle": float(angles[i]), "intensity": float(intensities[i])} for i in peaks]
 
-        result = await db.xrd.insert_one({
-            "userId": user["userId"],
-            "sampleId": sampleId,
-            "filename": file.filename,
-            "data": [{"angle": float(p[0]), "intensity": float(p[1])} for p in points],
-            "peaks": peak_list,
-            "notes": notes,
-            "createdAt": datetime.utcnow()
-        })
+        inserted_id = None
+        if DB_AVAILABLE:
+            result = await db.xrd.insert_one({
+                "userId": user["userId"],
+                "sampleId": sampleId,
+                "filename": file.filename,
+                "data": [{"angle": float(p[0]), "intensity": float(p[1])} for p in points],
+                "peaks": peak_list,
+                "notes": notes,
+                "createdAt": datetime.utcnow()
+            })
+            inserted_id = str(result.inserted_id)
 
-        return {"success": True, "points": len(points), "peaks": len(peaks), "id": str(result.inserted_id)}
+        return {"success": True, "points": len(points), "peaks": len(peaks), "id": inserted_id}
     except HTTPException:
         raise
     except Exception as e:
@@ -215,18 +266,21 @@ async def upload_magnetic(
             "Hc": float(np.abs(np.interp(0, y_vals, x_vals))) if np.any(np.diff(np.sign(y_vals))) else 0.0
         }
 
-        result = await db.magnetic.insert_one({
-            "userId": user["userId"],
-            "sampleId": sampleId,
-            "filename": file.filename,
-            "measurementType": measurementType,
-            "data": [{"x": float(p[0]), "y": float(p[1])} for p in points],
-            "properties": props,
-            "notes": notes,
-            "createdAt": datetime.utcnow()
-        })
+        inserted_id = None
+        if DB_AVAILABLE:
+            result = await db.magnetic.insert_one({
+                "userId": user["userId"],
+                "sampleId": sampleId,
+                "filename": file.filename,
+                "measurementType": measurementType,
+                "data": [{"x": float(p[0]), "y": float(p[1])} for p in points],
+                "properties": props,
+                "notes": notes,
+                "createdAt": datetime.utcnow()
+            })
+            inserted_id = str(result.inserted_id)
 
-        return {"success": True, "points": len(points), "properties": props, "id": str(result.inserted_id)}
+        return {"success": True, "points": len(points), "properties": props, "id": inserted_id}
     except HTTPException:
         raise
     except Exception as e:
