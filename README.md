@@ -22,37 +22,78 @@ Frontend:
 - Lucide icons
 - Custom API client
 
-## Setup
+## Project Structure
 
-### Backend
+```
+ElementX/
+├── backend/          # FastAPI backend
+│   ├── main.py
+│   └── requirements.txt
+├── frontend/         # React frontend
+│   ├── src/
+│   ├── package.json
+│   └── requirements.txt
+└── docker-compose.yml
+```
+
+## Quick Start (Development)
+
+### Option 1: Docker Compose (Easiest)
 
 ```bash
-cd elementx-backend
+# Create .env file in root directory
+echo "MONGODB_URI=your_mongodb_connection_string" > .env
+echo "JWT_SECRET=your_secret_key" >> .env
+
+# Start everything
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+```
+
+### Option 2: Manual Setup
+
+#### Backend
+
+```bash
+cd backend
 python -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
 Backend runs on `http://localhost:8000`
 
-### Frontend
+#### Frontend
 
 ```bash
-cd ElementX-frontend
+cd frontend
 npm install
 npm start
 ```
 
 Frontend runs on `http://localhost:3000`
 
+## Deployment (Make it Live!)
+
+See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for detailed deployment instructions.
+
+**Quick options:**
+- **Docker Compose**: `docker-compose up -d` (runs locally, auto-restarts)
+- **Render.com**: Free cloud hosting (see DEPLOYMENT.md)
+- **Railway.app**: Simple deployment (see DEPLOYMENT.md)
+- **PM2**: Process manager for local servers (see DEPLOYMENT.md)
+
 ## Environment Variables
 
-Create a `.env` file in `elementx-backend/`:
+Create a `.env` file in the root directory:
 
-```
+```env
 MONGODB_URI=your_mongodb_connection_string
 JWT_SECRET=your_secret_key
+REACT_APP_API_URL=http://localhost:8000  # Change in production
 ```
 
 ## Features
