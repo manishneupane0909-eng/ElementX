@@ -2,7 +2,9 @@
 
 A full-stack research platform that automates the tedious parts of materials science lab work - so researchers can focus on discovery, not data processing.
 
-<!-- Add a screenshot here: ![ElementX Dashboard](docs/screenshot.png) -->
+<img width="1445" height="486" alt="Screenshot 2026-03-11 at 7 49 44 PM" src="https://github.com/user-attachments/assets/903e989d-3ced-45ad-ba24-634586c8853b" />
+<img width="1408" height="612" alt="Screenshot 2026-03-11 at 7 50 06 PM" src="https://github.com/user-attachments/assets/34bbb19b-ec51-44b1-990d-4647bf840063" />
+
 
 ## The Problem
 
