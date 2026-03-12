@@ -1,90 +1,87 @@
 # ElementX
 
-A full-stack materials characterization platform for researchers. Helps with stoichiometry calculations, XRD peak detection, and magnetic property analysis from lab data.
+A full-stack research platform that automates the tedious parts of materials science lab work - so researchers can focus on discovery, not data processing.
 
-## What it does
+<!-- Add a screenshot here: ![ElementX Dashboard](docs/screenshot.png) -->
 
-- Stoichiometry Calculator: Calculate exact masses needed for compound synthesis
-- XRD Analysis: Upload XRD data files and automatically detect peaks using SciPy
-- Magnetic Properties: Extract Ms, Hc, Mr from M-H loops
-- User Accounts: JWT auth with MongoDB for saving calculations
+## The Problem
+
+As a materials science researcher, I found myself spending hours on repetitive tasks every week:
+
+- Manually calculating stoichiometric masses for compound synthesis
+- Hand-picking XRD peaks from noisy diffraction data
+- Copy-pasting M-H loop values into spreadsheets to extract magnetic properties
+
+ElementX automates all of it - and saves your work to your account so nothing gets lost between sessions.
+
+## Features
+
+| Feature | Description |
+| --- | --- |
+| Stoichiometry Calculator | Input a chemical formula (e.g. Fe2MoGe), a target element, and mass - get exact synthesis masses for every element |
+| XRD Peak Detection | Upload raw diffraction data; SciPy automatically detects peaks using prominence thresholds |
+| Magnetic Property Extractor | Upload M-H or M-T loop data and instantly get Ms, Hc, and Mr values |
+| User Accounts | JWT-authenticated accounts with MongoDB persistence - all your calculations are saved |
 
 ## Tech Stack
 
-Backend:
-- FastAPI (Python)
-- MongoDB with Motor (async driver)
-- NumPy/SciPy for data processing
-- JWT for authentication
+**Backend**
 
-Frontend:
-- React
-- Lucide icons
-- Custom API client
+- FastAPI - async Python web framework
+- MongoDB + Motor - async NoSQL database driver
+- NumPy / SciPy - scientific computing and peak detection
+- JWT - stateless authentication
 
-## Project Structure
+**Frontend**
 
-```
-ElementX/
-├── backend/          # FastAPI backend
-│   ├── main.py
-│   └── requirements.txt
-├── frontend/         # React frontend
-│   ├── src/
-│   ├── package.json
-│   └── requirements.txt
-└── docker-compose.yml
-```
+- React 18 - component-based UI
+- Lucide Icons - clean iconography
+- Custom REST API client
 
-## Quick Start (Development)
+**Infrastructure**
 
-### Option 1: Docker Compose (Easiest)
+- Docker Compose - containerized local and production deployment
+- Render / Railway - cloud hosting options
+
+## Getting Started
+
+### Option 1: Docker Compose (Recommended)
 
 ```bash
-# Create .env file in root directory
-echo "MONGODB_URI=your_mongodb_connection_string" > .env
-echo "JWT_SECRET=your_secret_key" >> .env
+# 1. Clone the repo
+git clone https://github.com/manishneupane0909-eng/ElementX.git
+cd ElementX
 
-# Start everything
+# 2. Create your environment file
+cp .env.example .env
+# Edit .env with your MongoDB URI and JWT secret
+
+# 3. Start everything
 docker-compose up -d
 
-# View logs
-docker-compose logs -f
+# 4. Open the app
+open http://localhost:3000
 ```
 
 ### Option 2: Manual Setup
 
-#### Backend
+**Backend**
 
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate       # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn main:app --reload
+uvicorn main:app --reload      # Runs on http://localhost:8000
 ```
 
-Backend runs on `http://localhost:8000`
-
-#### Frontend
+**Frontend**
 
 ```bash
 cd frontend
 npm install
-npm start
+npm start                      # Runs on http://localhost:3000
 ```
-
-Frontend runs on `http://localhost:3000`
-
-## Deployment (Make it Live!)
-
-See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for detailed deployment instructions.
-
-**Quick options:**
-- **Docker Compose**: `docker-compose up -d` (runs locally, auto-restarts)
-- **Render.com**: Free cloud hosting (see DEPLOYMENT.md)
-- **Railway.app**: Simple deployment (see DEPLOYMENT.md)
-- **PM2**: Process manager for local servers (see DEPLOYMENT.md)
 
 ## Environment Variables
 
@@ -93,33 +90,57 @@ Create a `.env` file in the root directory:
 ```env
 MONGODB_URI=your_mongodb_connection_string
 JWT_SECRET=your_secret_key
-REACT_APP_API_URL=http://localhost:8000  # Change in production
+REACT_APP_API_URL=http://localhost:8000   # Change to your API URL in production
 ```
 
-## Features
+## Project Structure
 
-### Stoichiometry Calculator
-Input a chemical formula (like Fe2MoGe), target element and mass, and it calculates all the masses needed.
+```
+ElementX/
+├── backend/
+│   ├── main.py              # FastAPI app and route definitions
+│   └── requirements.txt
+├── frontend/
+│   ├── src/                 # React components and API client
+│   └── package.json
+├── docker-compose.yml       # Multi-container orchestration
+└── render.yaml              # Render.com deployment config
+```
+
+## How It Works
 
 ### XRD Peak Detection
-Upload a text file with angle vs intensity data. The backend uses SciPy's `find_peaks` to detect peaks automatically.
 
-### Magnetic Analysis
-Upload M-H or M-T data and it extracts:
-- Saturation magnetization (Ms)
-- Coercivity (Hc)
-- Remanence (Mr)
+Raw `.txt` files with angle vs. intensity columns are parsed by the backend (handling whitespace, comma-separated, and commented formats). SciPy's `find_peaks` applies a prominence threshold based on max intensity to identify meaningful diffraction peaks - filtering out noise automatically.
 
-## Notes
+### Magnetic Property Extraction
 
-- The file parser handles various formats (whitespace, commas, comments)
-- Peak detection uses prominence threshold based on max intensity
-- All calculations are saved to MongoDB per user
+M-H loop files are parsed and fitted to extract:
 
-## Future improvements
+- **Ms** - saturation magnetization
+- **Hc** - coercive field
+- **Mr** - remanent magnetization
 
-- Add more file format support
-- Better visualization for XRD/Magnetic data
-- Export to Excel/CSV
-- Batch processing for multiple files
+All results are tied to the authenticated user's MongoDB document for persistent access.
 
+## Deployment
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for step-by-step instructions for:
+
+- Docker Compose (local server with auto-restart)
+- Render.com (free cloud hosting)
+- Railway.app (simple one-click deploy)
+- PM2 process manager
+
+## Roadmap
+
+- Batch file processing for multiple samples
+- Export results to Excel / CSV
+- Enhanced data visualization (interactive charts)
+- Additional XRD file format support (.xy, .dat, .xrdml)
+
+## About
+
+Built by Manish Neupane - physics and CS researcher at SDSU. This project grew directly out of real frustrations in the materials science lab, where manual data processing was slowing down research on MnBi-based composite magnets and Heusler alloys.
+
+If you work in a materials science lab and find this useful, feel free to open an issue or reach out!
