@@ -1,4 +1,12 @@
 # ElementX
+![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green?logo=fastapi)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)
+![MongoDB](https://img.shields.io/badge/MongoDB-Motor-47A248?logo=mongodb)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+
+> A full-stack research platform...
 
 A full-stack research platform that automates the tedious parts of materials science lab work - so researchers can focus on discovery, not data processing.
 
