@@ -42,8 +42,7 @@ ElementX automates all of it - and saves your work to your account so nothing ge
 
 **Infrastructure**
 
-- Docker Compose - containerized local and production deployment
-- Render / Railway - cloud hosting options
+- Docker Compose - local development
 
 ## Getting Started
 
@@ -105,8 +104,7 @@ ElementX/
 ├── frontend/
 │   ├── src/                 # React components and API client
 │   └── package.json
-├── docker-compose.yml       # Multi-container orchestration
-└── render.yaml              # Render.com deployment config
+└── docker-compose.yml       # Multi-container orchestration
 ```
 
 ## How It Works
@@ -124,15 +122,6 @@ M-H loop files are parsed and fitted to extract:
 - **Mr** - remanent magnetization
 
 All results are tied to the authenticated user's MongoDB document for persistent access.
-
-## Deployment
-
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for step-by-step instructions for:
-
-- Docker Compose (local server with auto-restart)
-- Render.com (free cloud hosting)
-- Railway.app (simple one-click deploy)
-- PM2 process manager
 
 ## Roadmap
 
