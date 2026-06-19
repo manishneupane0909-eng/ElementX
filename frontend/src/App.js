@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Calculator, Database, LineChart, Magnet, Download, Copy, LogOut, Upload, Save } from 'lucide-react';
+import { Calculator, Database, LineChart, Magnet, Download, Copy, LogOut, Upload, Save, Sparkles, Bot, Send } from 'lucide-react';
 import api from './api/api';
+import { XRDPlot, MagneticPlot } from './components/Plots';
 
 const ELEMENTS = {
   'H': 1.008, 'He': 4.003, 'Li': 6.941, 'Be': 9.012, 'B': 10.81, 'C': 12.01,
@@ -63,11 +64,12 @@ function normalizeElementSymbol(input) {
   return raw;
 }
 
-function LoginForm({ onLogin }) {
+function LoginForm({ onLogin, onDemo }) {
   const [isRegister, setIsRegister] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '', name: '', institution: '' });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -132,7 +134,10 @@ function LoginForm({ onLogin }) {
             ElementX
           </h1>
           <p style={{ fontSize: '14px', color: '#718096', margin: 0 }}>
-            Materials Characterization Platform
+            AI-powered discovery for critical materials
+          </p>
+          <p style={{ fontSize: '12px', color: '#a0aec0', margin: '8px 0 0' }}>
+            Rare-earth-free magnets · XRD · VSM · dopant AI
           </p>
         </div>
 
@@ -233,7 +238,7 @@ function LoginForm({ onLogin }) {
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || demoLoading}
             style={{
               width: '100%',
               padding: '14px',
@@ -243,14 +248,46 @@ function LoginForm({ onLogin }) {
               borderRadius: '8px',
               fontSize: '16px',
               fontWeight: '600',
-              cursor: submitting ? 'not-allowed' : 'pointer',
-              marginBottom: '15px'
+              cursor: submitting || demoLoading ? 'not-allowed' : 'pointer',
+              marginBottom: '12px'
             }}
           >
             {submitting ? 'Processing...' : (isRegister ? 'Create Account' : 'Sign In')}
           </button>
 
-          <div style={{ textAlign: 'center' }}>
+          {!isRegister && onDemo && (
+            <button
+              type="button"
+              disabled={submitting || demoLoading}
+              onClick={async () => {
+                setError('');
+                setDemoLoading(true);
+                try {
+                  await onDemo();
+                } catch (err) {
+                  setError(err.message || 'Demo failed — is the backend running on :8000?');
+                } finally {
+                  setDemoLoading(false);
+                }
+              }}
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: demoLoading ? '#e2e8f0' : '#0f766e',
+                color: demoLoading ? '#94a3b8' : 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '15px',
+                fontWeight: '600',
+                cursor: demoLoading ? 'wait' : 'pointer',
+                marginBottom: '15px',
+              }}
+            >
+              {demoLoading ? 'Loading demo lab…' : '▶ Try live demo (1 click)'}
+            </button>
+          )}
+
+          <div style={{ textAlign: 'center', marginBottom: '15px' }}>
             <button
               type="button"
               onClick={() => { setIsRegister(!isRegister); setError(''); }}
@@ -273,6 +310,429 @@ function LoginForm({ onLogin }) {
   );
 }
 
+function SamplePicker({ samples, value, onChange, disabled }) {
+  return (
+    <div style={{ flex: 1, minWidth: '220px' }}>
+      <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#4a5568', marginBottom: '8px' }}>
+        Link to sample
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        style={{
+          width: '100%',
+          padding: '12px 16px',
+          border: '2px solid #e2e8f0',
+          borderRadius: '8px',
+          fontSize: '15px',
+          background: 'white',
+        }}
+      >
+        <option value="">— Select a sample —</option>
+        {samples.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name || s.formula} ({s.status || 'planned'})
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function SampleDetailPanel({
+  sample,
+  onClose,
+  onRefresh,
+  onSetOutcome,
+  onRecommend,
+  onExperimentBrief,
+  aiLoading,
+  experimentBrief,
+}) {
+  if (!sample) return null;
+
+  const xrd = sample.characterization?.xrd;
+  const mag = sample.characterization?.magnetic;
+  const phase = sample.phaseAnalysis;
+  const recommendations = sample.aiRecommendations || [];
+
+  const outcomeBtn = (label, value, color) => (
+    <button
+      key={value}
+      disabled={aiLoading}
+      onClick={() => onSetOutcome && onSetOutcome(sample.id, value)}
+      style={{
+        padding: '6px 10px',
+        background: sample.outcomeLabel === value ? color : '#f1f5f9',
+        color: sample.outcomeLabel === value ? 'white' : '#475569',
+        border: `1px solid ${sample.outcomeLabel === value ? color : '#e2e8f0'}`,
+        borderRadius: '6px',
+        cursor: aiLoading ? 'wait' : 'pointer',
+        fontSize: '12px',
+        fontWeight: '600',
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div style={{
+      marginTop: '20px',
+      border: '2px solid #667eea',
+      borderRadius: '12px',
+      padding: '20px',
+      background: '#f8fafc',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+        <div>
+          <h3 style={{ margin: '0 0 4px', fontSize: '20px', color: '#1a202c' }}>{sample.name}</h3>
+          <div style={{ color: '#64748b', fontSize: '14px' }}>{sample.formula} · {sample.materialFamily} · {sample.status}</div>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={onRefresh}
+            style={{ padding: '6px 12px', background: '#667eea', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+          >
+            Refresh
+          </button>
+          <button
+            onClick={onClose}
+            style={{ padding: '6px 12px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+
+      {sample.synthesis && (
+        <div style={{ marginBottom: '14px', fontSize: '14px', color: '#475569' }}>
+          <strong>Synthesis:</strong> {sample.synthesis.method}
+          {sample.synthesis.anneal_temp_c != null && ` · ${sample.synthesis.anneal_temp_c}°C`}
+          {sample.synthesis.anneal_time_h != null && ` · ${sample.synthesis.anneal_time_h} h`}
+          {sample.synthesis.notes && ` · ${sample.synthesis.notes}`}
+        </div>
+      )}
+
+      {sample.dopants?.length > 0 && (
+        <div style={{ marginBottom: '14px', fontSize: '14px', color: '#475569' }}>
+          <strong>Dopants:</strong> {sample.dopants.map((d) => `${d.element} ${(d.fraction * 100).toFixed(1)}%`).join(', ')}
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
+        <div style={{ background: 'white', borderRadius: '8px', padding: '14px', border: '1px solid #e2e8f0' }}>
+          <div style={{ fontWeight: '600', marginBottom: '8px', color: '#1e293b' }}>XRD</div>
+          {xrd ? (
+            <>
+              <div style={{ fontSize: '13px', color: '#64748b' }}>{xrd.filename}</div>
+              <div style={{ fontSize: '13px', marginTop: '6px' }}>Peaks: {xrd.peaks?.length ?? '—'} · Points: {xrd.pointCount ?? '—'}</div>
+              {phase && (
+                <div style={{
+                  marginTop: '8px',
+                  padding: '8px',
+                  borderRadius: '6px',
+                  background: phase.tauDetected ? '#dcfce7' : '#fef3c7',
+                  color: phase.tauDetected ? '#166534' : '#92400e',
+                  fontSize: '13px',
+                }}>
+                  τ-MnAl: {phase.tauDetected ? `detected (${phase.matchedPeakCount}/3 peaks, ${(phase.confidence * 100).toFixed(0)}%)` : 'not detected'}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ color: '#94a3b8', fontSize: '13px' }}>No XRD uploaded</div>
+          )}
+        </div>
+
+        <div style={{ background: 'white', borderRadius: '8px', padding: '14px', border: '1px solid #e2e8f0' }}>
+          <div style={{ fontWeight: '600', marginBottom: '8px', color: '#1e293b' }}>Magnetometry</div>
+          {mag ? (
+            <>
+              <div style={{ fontSize: '13px', color: '#64748b' }}>{mag.filename} ({mag.measurementType})</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '8px' }}>
+                <div><span style={{ color: '#64748b', fontSize: '12px' }}>Ms</span><div style={{ fontWeight: '600' }}>{mag.properties?.Ms?.toFixed(2) ?? '—'}</div></div>
+                <div><span style={{ color: '#64748b', fontSize: '12px' }}>Mr</span><div style={{ fontWeight: '600' }}>{mag.properties?.Mr?.toFixed(2) ?? '—'}</div></div>
+                <div><span style={{ color: '#64748b', fontSize: '12px' }}>Hc</span><div style={{ fontWeight: '600' }}>{mag.properties?.Hc?.toFixed(2) ?? '—'}</div></div>
+              </div>
+            </>
+          ) : (
+            <div style={{ color: '#94a3b8', fontSize: '13px' }}>No magnetic data uploaded</div>
+          )}
+        </div>
+      </div>
+
+      {sample.xrdRecords?.[0]?.data?.length > 0 && (
+        <div style={{ marginTop: '16px', border: '1px solid #e2e8f0', borderRadius: '10px', background: 'white' }}>
+          <XRDPlot record={sample.xrdRecords[0]} title={`XRD pattern — ${sample.name}`} />
+        </div>
+      )}
+
+      {sample.magneticRecords?.[0]?.data?.length > 0 && (
+        <div style={{ marginTop: '16px', border: '1px solid #e2e8f0', borderRadius: '10px', background: 'white' }}>
+          <MagneticPlot record={sample.magneticRecords[0]} title={`M-H loop — ${sample.name}`} />
+        </div>
+      )}
+
+      <div style={{ marginTop: '16px', marginBottom: '14px' }}>
+        <div style={{ fontSize: '13px', fontWeight: '600', color: '#334155', marginBottom: '8px' }}>
+          Outcome label (trains AI ranker)
+        </div>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {outcomeBtn('Success', 'success', '#16a34a')}
+          {outcomeBtn('Partial', 'partial', '#d97706')}
+          {outcomeBtn('Fail', 'fail', '#dc2626')}
+          {sample.outcomeLabel && (
+            <span style={{ fontSize: '12px', color: '#64748b', alignSelf: 'center' }}>
+              Current: {sample.outcomeLabel}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+        <button
+          disabled={aiLoading}
+          onClick={() => onRecommend && onRecommend(sample.id)}
+          style={{ padding: '8px 12px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}
+        >
+          {aiLoading ? 'Running…' : 'AI: Rank next experiments'}
+        </button>
+        <button
+          disabled={aiLoading}
+          onClick={() => onExperimentBrief && onExperimentBrief(sample.id)}
+          style={{ padding: '8px 12px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}
+        >
+          {aiLoading ? 'Running…' : 'Generate experiment brief'}
+        </button>
+      </div>
+
+      {recommendations.length > 0 && (
+        <div style={{ marginBottom: '16px', background: 'white', borderRadius: '8px', padding: '14px', border: '1px solid #e2e8f0' }}>
+          <div style={{ fontWeight: '600', marginBottom: '10px', color: '#1e293b' }}>AI recommendations</div>
+          {recommendations.map((rec, i) => (
+            <div key={i} style={{ marginBottom: '10px', padding: '10px', background: '#f8fafc', borderRadius: '6px', fontSize: '13px' }}>
+              <div style={{ fontWeight: '600', color: '#4338ca' }}>{rec.suggestedFormula}</div>
+              <div style={{ color: '#64748b', marginTop: '4px' }}>Confidence: {(rec.confidence * 100).toFixed(0)}% · {rec.modelVersion}</div>
+              <div style={{ marginTop: '6px', color: '#475569' }}>{rec.rationale}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {experimentBrief && (
+        <div style={{ marginBottom: '16px', background: 'white', borderRadius: '8px', padding: '14px', border: '1px solid #e2e8f0' }}>
+          <div style={{ fontWeight: '600', marginBottom: '8px', color: '#1e293b' }}>Experiment brief</div>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: '13px', color: '#334155', margin: 0, fontFamily: 'inherit' }}>
+            {experimentBrief}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AnalysisCard({ analysis }) {
+  if (!analysis) return null;
+  const phase = analysis.phase;
+  const lat = analysis.lattice;
+  const cs = analysis.crystallite;
+  const mag = analysis.magnetics;
+
+  const stat = (label, value, unit = '') => (
+    <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px 12px', minWidth: '120px' }}>
+      <div style={{ fontSize: '11px', color: '#64748b' }}>{label}</div>
+      <div style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>
+        {value ?? '—'}{value != null && unit ? ` ${unit}` : ''}
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ marginTop: '10px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+      {phase && stat('τ-MnAl phase', phase.tauDetected ? 'Detected' : 'Not detected')}
+      {lat?.ok && stat('Lattice a (cubic est.)', lat.lattice_a_cubic, 'Å')}
+      {cs?.ok && stat('Crystallite size', cs.crystallite_size_nm, 'nm')}
+      {mag?.ok && stat('Ms', mag.Ms_emu_g, 'emu/g')}
+      {mag?.ok && stat('Hc', mag.Hc_Oe, 'Oe')}
+      {mag?.ok && stat('Squareness', mag.squareness_Mr_Ms)}
+      {mag?.ok && stat('(BH)max est.', mag.bhmax_estimate_MGOe, 'MGOe')}
+    </div>
+  );
+}
+
+function CopilotTab({ samples, selectedSampleId, setSelectedSampleId, cardStyle, inputStyle, onLoadDemo }) {
+  const [messages, setMessages] = useState([
+    {
+      role: 'assistant',
+      text:
+        'Hi — I\'m ElementX Copilot. Select a sample, then ask me to analyze it, recommend the next experiment, or write a brief. You can also upload XRD/VSM files right here.',
+    },
+  ]);
+  const [input, setInput] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  useEffect(() => {
+    api.agent.status().then(setStatus).catch(() => {});
+  }, []);
+
+  const send = async (textArg) => {
+    const msg = (textArg ?? input).trim();
+    if (!msg || busy) return;
+    const base = [...messages, { role: 'user', text: msg }];
+    setMessages(base);
+    setInput('');
+    setBusy(true);
+    try {
+      const history = messages
+        .map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text }))
+        .filter((m) => m.content);
+      const res = await api.agent.chat(msg, selectedSampleId, history);
+      setMessages([...base, { role: 'assistant', text: res.answer, payload: res }]);
+    } catch (e) {
+      setMessages([...base, { role: 'assistant', text: 'Error: ' + (e.message || 'request failed') }]);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleFile = async (e, kind) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = null;
+    if (!selectedSampleId) {
+      setMessages((m) => [...m, { role: 'assistant', text: 'Please select a sample first, then upload.' }]);
+      return;
+    }
+    setBusy(true);
+    setMessages((m) => [...m, { role: 'user', text: `Uploaded ${kind.toUpperCase()} file: ${file.name}` }]);
+    try {
+      if (kind === 'xrd') await api.xrd.upload(file, selectedSampleId);
+      else await api.magnetic.upload(file, 'M-H', selectedSampleId);
+      await send(`Analyze the ${kind === 'xrd' ? 'XRD pattern' : 'M-H loop'} I just uploaded and tell me what I got.`);
+    } catch (err) {
+      setMessages((m) => [...m, { role: 'assistant', text: 'Upload failed: ' + (err.message || 'error') }]);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const quick = (label, prompt) => (
+    <button
+      disabled={busy}
+      onClick={() => send(prompt)}
+      style={{ padding: '8px 12px', background: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: '8px', cursor: busy ? 'wait' : 'pointer', fontSize: '13px' }}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div style={cardStyle}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
+        <h2 style={{ fontSize: '20px', fontWeight: 600, color: '#1a202c', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Bot size={22} /> Physics Copilot
+        </h2>
+        {status && (
+          <span style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '999px', background: status.llmAvailable ? '#ecfdf5' : '#fffbeb', color: status.llmAvailable ? '#065f46' : '#92400e', border: `1px solid ${status.llmAvailable ? '#6ee7b7' : '#fcd34d'}` }}>
+            {status.llmAvailable ? `LLM: ${status.model}` : 'Offline mode — set GEMINI_API_KEY (free)'}
+          </span>
+        )}
+      </div>
+
+      {samples.length === 0 && (
+        <div style={{ padding: '16px', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1', marginBottom: '12px' }}>
+          <p style={{ color: '#64748b', margin: '0 0 10px' }}>No samples to analyze yet. Load the demo lab to get 3 MnAl samples with XRD + magnetic data.</p>
+          <button
+            type="button"
+            disabled={busy || !onLoadDemo}
+            onClick={onLoadDemo}
+            style={{ padding: '10px 18px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', cursor: busy ? 'wait' : 'pointer', fontWeight: 600 }}
+          >
+            Load demo lab (3 MnAl samples + AI)
+          </button>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '12px' }}>
+        <SamplePicker samples={samples} value={selectedSampleId} onChange={setSelectedSampleId} disabled={busy} />
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: busy ? 'wait' : 'pointer', background: 'white' }}>
+          <Upload size={15} /> XRD
+          <input type="file" accept=".txt,.csv,.ras,.dat,.DAT" onChange={(e) => handleFile(e, 'xrd')} disabled={busy} style={{ display: 'none' }} />
+        </label>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: busy ? 'wait' : 'pointer', background: 'white' }}>
+          <Upload size={15} /> VSM
+          <input type="file" accept=".txt,.csv,.dat,.DAT" onChange={(e) => handleFile(e, 'mag')} disabled={busy} style={{ display: 'none' }} />
+        </label>
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+        {quick('Analyze sample', 'Analyze this sample: phase, lattice parameter, crystallite size, and magnetic properties.')}
+        {quick('What next?', 'What experiment should I run next to improve coercivity?')}
+        {quick('Write brief', 'Write an experiment brief for this sample.')}
+      </div>
+
+      <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', background: '#fbfcfe', maxHeight: '560px', overflowY: 'auto' }}>
+        {messages.map((m, i) => (
+          <div key={i} style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+            <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>{m.role === 'user' ? 'You' : 'Copilot'}</div>
+            <div style={{ maxWidth: '85%', background: m.role === 'user' ? '#667eea' : 'white', color: m.role === 'user' ? 'white' : '#1f2937', border: m.role === 'user' ? 'none' : '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 14px' }}>
+              <pre style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', fontSize: '14px', lineHeight: 1.5 }}>{m.text}</pre>
+              {m.payload?.analysis && <AnalysisCard analysis={m.payload.analysis} />}
+              {m.payload?.xrdRecord?.data?.length > 0 && (
+                <div style={{ marginTop: '12px', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                  <XRDPlot record={m.payload.xrdRecord} title="XRD pattern" />
+                </div>
+              )}
+              {m.payload?.magneticRecord?.data?.length > 0 && (
+                <div style={{ marginTop: '12px', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                  <MagneticPlot record={m.payload.magneticRecord} title="M-H loop" />
+                </div>
+              )}
+              {m.payload?.recommendations?.length > 0 && (
+                <div style={{ marginTop: '12px' }}>
+                  {m.payload.recommendations.map((r, j) => (
+                    <div key={j} style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px', marginBottom: '6px', fontSize: '13px' }}>
+                      <strong style={{ color: '#4338ca' }}>{r.suggestedFormula}</strong> · {(r.confidence * 100).toFixed(0)}%
+                      <div style={{ color: '#475569', marginTop: '2px' }}>{r.rationale}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {m.payload?.source && (
+                <div style={{ fontSize: '10px', color: '#cbd5e1', marginTop: '8px' }}>
+                  {m.payload.source}{m.payload.toolsUsed?.length ? ` · tools: ${m.payload.toolsUsed.join(', ')}` : ''}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        {busy && <div style={{ color: '#94a3b8', fontSize: '13px' }}>Copilot is thinking…</div>}
+      </div>
+
+      <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
+          placeholder="Ask anything — e.g. 'What phase did I get and how do I raise Hc?'"
+          disabled={busy}
+          style={{ ...inputStyle, flex: 1 }}
+        />
+        <button
+          onClick={() => send()}
+          disabled={busy || !input.trim()}
+          style={{ padding: '12px 18px', background: '#667eea', color: 'white', border: 'none', borderRadius: '8px', cursor: busy ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}
+        >
+          <Send size={16} /> Send
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('calc');
@@ -286,6 +746,23 @@ function App() {
   const [xrdData, setXrdData] = useState(null);
   const [magData, setMagData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [selectedSampleId, setSelectedSampleId] = useState('');
+  const [measurementType, setMeasurementType] = useState('M-H');
+  const [detailSample, setDetailSample] = useState(null);
+  const [uploadMessage, setUploadMessage] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiStatus, setAiStatus] = useState(null);
+  const [copilotQuestion, setCopilotQuestion] = useState('');
+  const [copilotAnswer, setCopilotAnswer] = useState('');
+  const [copilotSource, setCopilotSource] = useState('');
+  const [synthesisNotes, setSynthesisNotes] = useState('');
+  const [parsedSynthesis, setParsedSynthesis] = useState(null);
+  const [applySampleId, setApplySampleId] = useState('');
+  const [detailBrief, setDetailBrief] = useState('');
+  const [lastRecommendations, setLastRecommendations] = useState(null);
+  const [demoBanner, setDemoBanner] = useState('');
+  const [xrdRecord, setXrdRecord] = useState(null);
+  const [magRecord, setMagRecord] = useState(null);
 
   useEffect(() => {
     const currentUser = api.auth.getCurrentUser();
@@ -295,11 +772,44 @@ function App() {
     }
   }, []);
 
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setUser(null);
+      setHistory([]);
+      setDetailSample(null);
+      setError('Your session expired. Please log in again, or use “Try live demo”.');
+    };
+    window.addEventListener('elementx:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('elementx:unauthorized', onUnauthorized);
+  }, []);
+
+  useEffect(() => {
+    if (user && (activeTab === 'xrd' || activeTab === 'mag' || activeTab === 'history' || activeTab === 'ai' || activeTab === 'copilot')) {
+      loadHistory();
+    }
+    if (user && activeTab === 'ai') {
+      loadAiStatus();
+    }
+  }, [activeTab, user]);
+
+  const loadAiStatus = async () => {
+    try {
+      const status = await api.ai.status();
+      setAiStatus(status);
+    } catch (err) {
+      console.error('AI status:', err);
+    }
+  };
+
   const loadHistory = async () => {
     setLoading(true);
     try {
       const data = await api.samples.getAll();
       setHistory(data);
+      if (detailSample?.id) {
+        const fresh = await api.samples.getById(detailSample.id);
+        setDetailSample(fresh);
+      }
     } catch (err) {
       console.error('Failed to load history:', err);
     } finally {
@@ -307,9 +817,142 @@ function App() {
     }
   };
 
-  const handleLogin = (userData) => {
+  const openSampleDetail = async (id) => {
+    setLoading(true);
+    setError('');
+    setDetailBrief('');
+    try {
+      const sample = await api.samples.getById(id);
+      setDetailSample(sample);
+      setSelectedSampleId(id);
+    } catch (err) {
+      setError('Failed to load sample: ' + (err.message || 'Unknown error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSetOutcome = async (sampleId, outcomeLabel) => {
+    setAiLoading(true);
+    setError('');
+    try {
+      await api.samples.update(sampleId, { outcome_label: outcomeLabel });
+      await openSampleDetail(sampleId);
+      await loadHistory();
+    } catch (err) {
+      setError(err.message || 'Failed to set outcome');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleRecommend = async (sampleId) => {
+    setAiLoading(true);
+    setError('');
+    try {
+      const result = await api.samples.recommend(sampleId);
+      setLastRecommendations(result);
+      setUploadMessage(result.summary || 'Recommendations generated.');
+      await openSampleDetail(sampleId);
+      await loadHistory();
+    } catch (err) {
+      setError(err.message || 'Recommendation failed');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleExperimentBrief = async (sampleId) => {
+    setAiLoading(true);
+    setError('');
+    try {
+      const result = await api.samples.experimentBrief(sampleId);
+      setDetailBrief(result.markdown || '');
+    } catch (err) {
+      setError(err.message || 'Brief generation failed');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleCopilot = async () => {
+    if (!copilotQuestion.trim()) return;
+    setAiLoading(true);
+    setError('');
+    try {
+      const result = await api.ai.copilot(
+        copilotQuestion.trim(),
+        selectedSampleId || null,
+        null
+      );
+      setCopilotAnswer(result.answer || '');
+      setCopilotSource(result.source || '');
+    } catch (err) {
+      setError(err.message || 'Copilot failed');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleParseSynthesis = async () => {
+    if (!synthesisNotes.trim()) return;
+    setAiLoading(true);
+    setError('');
+    try {
+      const result = await api.ai.parseSynthesis(synthesisNotes.trim());
+      setParsedSynthesis(result);
+    } catch (err) {
+      setError(err.message || 'Parse failed');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleApplySynthesis = async () => {
+    if (!applySampleId || !parsedSynthesis?.synthesis) return;
+    setAiLoading(true);
+    setError('');
+    try {
+      const updates = { synthesis: parsedSynthesis.synthesis };
+      if (parsedSynthesis.dopants?.length) {
+        updates.dopants = parsedSynthesis.dopants;
+      }
+      await api.samples.update(applySampleId, updates);
+      setUploadMessage('Synthesis fields applied to sample.');
+      if (detailSample?.id === applySampleId) {
+        await openSampleDetail(applySampleId);
+      }
+      await loadHistory();
+    } catch (err) {
+      setError(err.message || 'Apply failed');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleLogin = (userData, options = {}) => {
     setUser(userData);
     loadHistory();
+    if (options.tab) setActiveTab(options.tab);
+    if (options.message) setDemoBanner(options.message);
+  };
+
+  const handleDemoLogin = async () => {
+    const boot = await api.demo.bootstrap();
+    const loginResult = await api.auth.login({
+      email: boot.email,
+      password: boot.password,
+    });
+    handleLogin(loginResult.user, {
+      tab: 'copilot',
+      message: boot.message || 'Demo lab loaded — try the Physics Copilot: select a sample and ask it to analyze.',
+    });
+    if (boot.recommendations?.length) {
+      setLastRecommendations({
+        recommendations: boot.recommendations,
+        summary: boot.pitchHint || boot.message,
+      });
+    }
   };
 
   const handleLogout = () => {
@@ -379,11 +1022,17 @@ function App() {
   const saveSample = async () => {
     if (!result) return;
     setLoading(true);
+    setError('');
     try {
-      await api.samples.create({ ...result, name: sampleName || result.formula });
+      const created = await api.samples.create({
+        name: sampleName || result.formula,
+        formula: result.formula,
+        stoichiometry: result,
+      });
       await loadHistory();
+      setSelectedSampleId(created.id);
       setSampleName('');
-      alert('Sample saved successfully!');
+      alert(`Sample "${created.name}" saved. You can now upload XRD and magnetic data for it.`);
     } catch (err) {
       alert('Failed to save sample: ' + (err.message || 'Unknown error'));
     } finally {
@@ -392,10 +1041,20 @@ function App() {
   };
 
   const loadSample = (sample) => {
-    setFormula(sample.formula);
-    setTargetEl(sample.targetEl);
-    setTargetMass(sample.targetMass.toString());
-    setResult(sample);
+    const stoich = sample.stoichiometry;
+    if (stoich && Array.isArray(stoich.elements) && typeof stoich.total === 'number') {
+      setFormula(stoich.formula || sample.formula || '');
+      setTargetEl(stoich.targetEl || '');
+      setTargetMass(String(stoich.targetMass || ''));
+      setResult(stoich);
+      setError('');
+    } else {
+      setFormula(sample.formula || '');
+      setTargetEl('');
+      setTargetMass('1');
+      setResult(null);
+      setError('This sample has no saved stoichiometry calculation. Enter a target element and mass, then Calculate.');
+    }
     setActiveTab('calc');
   };
 
@@ -404,6 +1063,8 @@ function App() {
     setLoading(true);
     try {
       await api.samples.delete(id);
+      if (detailSample?.id === id) setDetailSample(null);
+      if (selectedSampleId === id) setSelectedSampleId('');
       await loadHistory();
     } catch (err) {
       alert('Failed to delete sample: ' + (err.message || 'Unknown error'));
@@ -444,19 +1105,42 @@ function App() {
     const file = e.target.files[0];
     if (!file) return;
 
-    setLoading(true);
-    try {
-      const text = await file.text();
-      const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-      const data = lines.map(line => {
-        const [x, y] = line.trim().split(/\s+/).map(Number);
-        return { angle: x, intensity: y };
-      }).filter(d => !isNaN(d.angle) && !isNaN(d.intensity));
+    if (!selectedSampleId) {
+      setError('Select a sample before uploading XRD data.');
+      e.target.value = null;
+      return;
+    }
 
-      if (data.length === 0) throw new Error("File contains no valid numeric data.");
-      setXrdData({ filename: file.name, data, processedDate: new Date().toLocaleString() });
-    } catch (error) {
-      setError(`XRD Upload/Processing Failed: ${error.message}`);
+    setLoading(true);
+    setError('');
+    setUploadMessage('');
+    try {
+      const response = await api.xrd.upload(file, selectedSampleId);
+      setXrdData({
+        filename: file.name,
+        points: response.points,
+        peaks: response.peaks,
+        peakCount: response.peakCount,
+        phaseAnalysis: response.phaseAnalysis,
+        recordId: response.id,
+        processedDate: new Date().toLocaleString(),
+        saved: true,
+      });
+      setUploadMessage(`Saved and linked to sample. Pattern plotted below.`);
+      try {
+        const full = await api.samples.getById(selectedSampleId);
+        if (full?.xrdRecords?.[0]?.data?.length) {
+          setXrdRecord(full.xrdRecords[0]);
+        }
+      } catch (_) {
+        // plotting is best-effort; ignore fetch errors
+      }
+      await loadHistory();
+      if (detailSample?.id === selectedSampleId) {
+        await openSampleDetail(selectedSampleId);
+      }
+    } catch (err) {
+      setError(`XRD upload failed: ${err.message}`);
       setXrdData(null);
     } finally {
       setLoading(false);
@@ -468,37 +1152,44 @@ function App() {
     const file = e.target.files[0];
     if (!file) return;
 
+    if (!selectedSampleId) {
+      setError('Select a sample before uploading magnetic data.');
+      e.target.value = null;
+      return;
+    }
+
     setLoading(true);
+    setError('');
+    setUploadMessage('');
     try {
-      const text = await file.text();
-      const lines = text.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-      const data = lines.map(line => {
-        const [x, y] = line.trim().split(/\s+/).map(Number);
-        return { field: x, moment: y };
-      }).filter(d => !isNaN(d.field) && !isNaN(d.moment));
-
-      if (data.length === 0) throw new Error("File contains no valid numeric data.");
-
-      const moments = data.map(d => Math.abs(d.moment));
-      const Ms = Math.max(...moments);
-      let Hc = 0;
-      let minMoment = Ms;
-      for (const d of data) {
-        if (Math.abs(d.moment) < minMoment) {
-          minMoment = Math.abs(d.moment);
-          Hc = d.field;
-        }
-      }
-
+      const response = await api.magnetic.upload(file, measurementType, selectedSampleId);
+      const props = response.properties || {};
       setMagData({
         filename: file.name,
-        data,
-        Ms: Ms.toFixed(3),
-        Hc: Math.abs(Hc).toFixed(3),
-        processedDate: new Date().toLocaleString()
+        points: response.points,
+        Ms: props.Ms?.toFixed(3) ?? '—',
+        Mr: props.Mr?.toFixed(3) ?? '—',
+        Hc: props.Hc?.toFixed(3) ?? '—',
+        measurementType,
+        recordId: response.id,
+        processedDate: new Date().toLocaleString(),
+        saved: true,
       });
-    } catch (error) {
-      setError(`Magnetic Upload/Processing Failed: ${error.message}`);
+      setUploadMessage(`Saved and linked to sample. M-H loop plotted below.`);
+      try {
+        const full = await api.samples.getById(selectedSampleId);
+        if (full?.magneticRecords?.[0]?.data?.length) {
+          setMagRecord(full.magneticRecords[0]);
+        }
+      } catch (_) {
+        // plotting is best-effort; ignore fetch errors
+      }
+      await loadHistory();
+      if (detailSample?.id === selectedSampleId) {
+        await openSampleDetail(selectedSampleId);
+      }
+    } catch (err) {
+      setError(`Magnetic upload failed: ${err.message}`);
       setMagData(null);
     } finally {
       setLoading(false);
@@ -507,7 +1198,7 @@ function App() {
   };
 
   if (!user) {
-    return <LoginForm onLogin={handleLogin} />;
+    return <LoginForm onLogin={handleLogin} onDemo={handleDemoLogin} />;
   }
 
   const cardStyle = {
@@ -561,7 +1252,7 @@ function App() {
             </div>
             <div>
               <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#1a202c', margin: 0 }}>ElementX</h1>
-              <p style={{ fontSize: '12px', color: '#718096', margin: 0 }}>Materials Characterization Platform</p>
+              <p style={{ fontSize: '12px', color: '#718096', margin: 0 }}>AI discovery · RE-free magnets · Lab loop</p>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -602,16 +1293,18 @@ function App() {
           gap: '8px'
         }}>
           {[
+            { id: 'copilot', label: 'Physics Copilot', icon: Bot },
             { id: 'calc', label: 'Stoichiometry Calculator', icon: Calculator },
             { id: 'history', label: 'Sample Database', icon: Database },
             { id: 'xrd', label: 'XRD Analysis', icon: LineChart },
-            { id: 'mag', label: 'Magnetic Properties', icon: Magnet }
+            { id: 'mag', label: 'Magnetic Properties', icon: Magnet },
+            { id: 'ai', label: 'AI Discovery', icon: Sparkles }
           ].map(tab => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => { setActiveTab(tab.id); setError(''); setUploadMessage(''); }}
                 disabled={loading}
                 style={{
                   flex: 1,
@@ -637,6 +1330,52 @@ function App() {
             );
           })}
         </div>
+
+        {demoBanner && (
+          <div style={{
+            marginBottom: '20px',
+            padding: '14px 18px',
+            borderRadius: '10px',
+            background: 'linear-gradient(135deg, #ecfdf5 0%, #dbeafe 100%)',
+            border: '1px solid #6ee7b7',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px',
+            flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: '14px', color: '#065f46', fontWeight: '500' }}>{demoBanner}</span>
+            <button
+              type="button"
+              onClick={() => setDemoBanner('')}
+              style={{ padding: '6px 12px', background: 'white', border: '1px solid #6ee7b7', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'copilot' && (
+          <CopilotTab
+            samples={history}
+            selectedSampleId={selectedSampleId}
+            setSelectedSampleId={setSelectedSampleId}
+            cardStyle={cardStyle}
+            inputStyle={inputStyle}
+            onLoadDemo={async () => {
+              setLoading(true);
+              try {
+                const boot = await api.demo.load(false);
+                setDemoBanner(boot.message);
+                await loadHistory();
+              } catch (err) {
+                setError(err.message);
+              } finally {
+                setLoading(false);
+              }
+            }}
+          />
+        )}
 
         {activeTab === 'calc' && (
           <div>
@@ -701,7 +1440,7 @@ function App() {
               </div>
             )}
 
-            {result && (
+            {result && Array.isArray(result.elements) && typeof result.total === 'number' && (
               <div style={cardStyle}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                   <div>
@@ -792,36 +1531,88 @@ function App() {
               Saved Samples
             </h2>
             <p style={{ color: '#64748b', marginTop: 0 }}>
-              These are stored locally in your browser for now.
+              Samples are stored in MongoDB and linked to XRD and magnetometry uploads.
             </p>
+
+            {error && activeTab === 'history' && (
+              <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#dc2626', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
+                {error}
+              </div>
+            )}
 
             {loading ? (
               <div style={{ padding: '10px 0' }}>Loading…</div>
             ) : history.length === 0 ? (
-              <div style={{ padding: '10px 0', color: '#64748b' }}>No saved samples yet.</div>
+              <div style={{ padding: '24px', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+                <p style={{ color: '#64748b', marginTop: 0 }}>No samples yet.</p>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={async () => {
+                    setLoading(true);
+                    try {
+                      const boot = await api.demo.load(false);
+                      setDemoBanner(boot.message);
+                      await loadHistory();
+                      setActiveTab('ai');
+                    } catch (err) {
+                      setError(err.message);
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  style={{ padding: '12px 20px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
+                >
+                  Load demo lab (3 MnAl samples + AI)
+                </button>
+              </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
-                {history.slice().reverse().map((s) => (
+                {history.map((s) => (
                   <div key={s.id} style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
                       <div>
                         <div style={{ fontWeight: '700', color: '#0f172a' }}>{s.name || s.formula}</div>
                         <div style={{ fontSize: '13px', color: '#64748b' }}>{s.formula}</div>
+                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                          {s.materialFamily || 'mnal_tau'} · {s.status || 'planned'}
+                        </div>
                         <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
                           {s.createdAt ? new Date(s.createdAt).toLocaleString() : ''}
                         </div>
                       </div>
                       <div style={{ fontSize: '12px', color: '#64748b', textAlign: 'right' }}>
-                        Total: {Number(s.total || 0).toFixed(6)} g
+                        {s.characterization?.xrd ? 'XRD ✓' : ''}
+                        {s.characterization?.magnetic ? ' Mag ✓' : ''}
+                        {s.phaseAnalysis?.tauDetected ? ' · τ' : ''}
+                        {s.outcomeLabel ? ` · ${s.outcomeLabel}` : ''}
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => openSampleDetail(s.id)}
+                        style={{ padding: '8px 10px', background: '#667eea', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', flex: 1 }}
+                      >
+                        Details
+                      </button>
                       <button
                         onClick={() => loadSample(s)}
                         style={{ padding: '8px 10px', background: '#111827', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', flex: 1 }}
                       >
                         Load
+                      </button>
+                      <button
+                        onClick={() => { setSelectedSampleId(s.id); setActiveTab('xrd'); }}
+                        style={{ padding: '8px 10px', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                      >
+                        XRD
+                      </button>
+                      <button
+                        onClick={() => { setSelectedSampleId(s.id); setActiveTab('mag'); }}
+                        style={{ padding: '8px 10px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                      >
+                        Mag
                       </button>
                       <button
                         onClick={() => deleteSample(s.id)}
@@ -834,6 +1625,17 @@ function App() {
                 ))}
               </div>
             )}
+
+            <SampleDetailPanel
+              sample={detailSample}
+              onClose={() => { setDetailSample(null); setDetailBrief(''); }}
+              onRefresh={() => detailSample && openSampleDetail(detailSample.id)}
+              onSetOutcome={handleSetOutcome}
+              onRecommend={handleRecommend}
+              onExperimentBrief={handleExperimentBrief}
+              aiLoading={aiLoading}
+              experimentBrief={detailBrief}
+            />
           </div>
         )}
 
@@ -843,33 +1645,79 @@ function App() {
               XRD Analysis
             </h2>
             <p style={{ color: '#64748b', marginTop: 0 }}>
-              Upload a 2-column text file (angle vs intensity). This view parses locally.
+              Upload a 2-column file (angle vs intensity). Data is parsed on the server, peaks detected, and saved to MongoDB.
             </p>
 
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '10px', cursor: loading ? 'wait' : 'pointer' }}>
+            {error && (
+              <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#dc2626', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
+                {error}
+              </div>
+            )}
+
+            {uploadMessage && (
+              <div style={{ background: '#dcfce7', border: '1px solid #86efac', color: '#166534', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
+                {uploadMessage}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end', marginBottom: '16px', flexWrap: 'wrap' }}>
+              <SamplePicker
+                samples={history}
+                value={selectedSampleId}
+                onChange={setSelectedSampleId}
+                disabled={loading}
+              />
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: '10px', cursor: loading ? 'wait' : 'pointer', background: 'white' }}>
                 <Upload size={16} />
-                <span>Choose file</span>
-                <input type="file" accept=".txt,.csv" onChange={handleXRDUpload} disabled={loading} style={{ display: 'none' }} />
+                <span>{loading ? 'Uploading…' : 'Choose file'}</span>
+                <input type="file" accept=".txt,.csv,.ras,.dat,.DAT" onChange={handleXRDUpload} disabled={loading} style={{ display: 'none' }} />
               </label>
-              {xrdData?.filename && <div style={{ color: '#0f172a' }}>{xrdData.filename}</div>}
             </div>
 
             {xrdData ? (
               <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
-                  <div><strong>Points:</strong> {xrdData.data.length}</div>
+                  <div><strong>File:</strong> {xrdData.filename}</div>
+                  <div><strong>Points:</strong> {xrdData.points}</div>
+                  <div><strong>Peaks found:</strong> {xrdData.peakCount}</div>
                   <div><strong>Processed:</strong> {xrdData.processedDate}</div>
+                  {xrdData.saved && <div style={{ color: '#16a34a', fontWeight: '600' }}>✓ Saved to database</div>}
                 </div>
+
+                {xrdData.phaseAnalysis && (
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '10px',
+                    borderRadius: '8px',
+                    background: xrdData.phaseAnalysis.tauDetected ? '#dcfce7' : '#fef3c7',
+                    color: xrdData.phaseAnalysis.tauDetected ? '#166534' : '#92400e',
+                  }}>
+                    <strong>Phase analysis (τ-MnAl):</strong>{' '}
+                    {xrdData.phaseAnalysis.tauDetected
+                      ? `Detected — ${xrdData.phaseAnalysis.matchedPeakCount} reference peaks matched (${(xrdData.phaseAnalysis.confidence * 100).toFixed(0)}% confidence)`
+                      : 'τ-phase not detected in this pattern'}
+                  </div>
+                )}
+
+                {xrdRecord?.data?.length > 0 && (
+                  <div style={{ marginTop: '14px' }}>
+                    <XRDPlot record={xrdRecord} title={`XRD pattern — ${xrdData.filename}`} />
+                  </div>
+                )}
+
                 <div style={{ marginTop: '12px', fontSize: '13px', color: '#64748b' }}>
-                  Preview (first 8 points):
+                  Detected peaks (first 10):
                   <pre style={{ background: '#0b1220', color: '#e5e7eb', padding: '10px', borderRadius: '8px', overflowX: 'auto', marginTop: '8px' }}>
-                    {xrdData.data.slice(0, 8).map(p => `${p.angle}\t${p.intensity}`).join('\n')}
+                    {(xrdData.peaks || []).slice(0, 10).map((p) => `${p.angle.toFixed(2)}\t${p.intensity.toFixed(0)}`).join('\n') || 'No peaks'}
                   </pre>
                 </div>
               </div>
             ) : (
-              <div style={{ color: '#64748b' }}>No XRD file loaded yet.</div>
+              <div style={{ color: '#64748b' }}>
+                {history.length === 0
+                  ? 'Create a sample in the Sample Database tab first, then select it here.'
+                  : 'Select a sample and upload an XRD file (.ras, .txt, .csv, .dat).'}
+              </div>
             )}
           </div>
         )}
@@ -880,35 +1728,233 @@ function App() {
               Magnetic Properties
             </h2>
             <p style={{ color: '#64748b', marginTop: 0 }}>
-              Upload a 2-column text file (field vs moment). This view parses locally and estimates Ms/Hc.
+              Upload a 2-column file (field/temperature vs moment). Ms, Mr, and Hc are computed on the server and saved to MongoDB.
             </p>
 
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '10px', cursor: loading ? 'wait' : 'pointer' }}>
+            {error && (
+              <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#dc2626', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
+                {error}
+              </div>
+            )}
+
+            {uploadMessage && (
+              <div style={{ background: '#dcfce7', border: '1px solid #86efac', color: '#166534', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
+                {uploadMessage}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end', marginBottom: '16px', flexWrap: 'wrap' }}>
+              <SamplePicker
+                samples={history}
+                value={selectedSampleId}
+                onChange={setSelectedSampleId}
+                disabled={loading}
+              />
+              <div style={{ minWidth: '160px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#4a5568', marginBottom: '8px' }}>
+                  Measurement type
+                </label>
+                <select
+                  value={measurementType}
+                  onChange={(e) => setMeasurementType(e.target.value)}
+                  disabled={loading}
+                  style={{ width: '100%', padding: '12px 16px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '15px' }}
+                >
+                  <option value="M-H">M-H (hysteresis loop)</option>
+                  <option value="M-T">M-T (temperature scan)</option>
+                </select>
+              </div>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: '10px', cursor: loading ? 'wait' : 'pointer', background: 'white' }}>
                 <Upload size={16} />
-                <span>Choose file</span>
-                <input type="file" accept=".txt,.csv" onChange={handleMagUpload} disabled={loading} style={{ display: 'none' }} />
+                <span>{loading ? 'Uploading…' : 'Choose file'}</span>
+                <input type="file" accept=".txt,.csv,.dat,.DAT" onChange={handleMagUpload} disabled={loading} style={{ display: 'none' }} />
               </label>
-              {magData?.filename && <div style={{ color: '#0f172a' }}>{magData.filename}</div>}
             </div>
 
             {magData ? (
               <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
-                  <div><strong>Points:</strong> {magData.data.length}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
+                  <div><strong>File:</strong> {magData.filename}</div>
+                  <div><strong>Type:</strong> {magData.measurementType}</div>
+                  <div><strong>Points:</strong> {magData.points}</div>
                   <div><strong>Ms:</strong> {magData.Ms}</div>
+                  <div><strong>Mr:</strong> {magData.Mr}</div>
                   <div><strong>Hc:</strong> {magData.Hc}</div>
                   <div><strong>Processed:</strong> {magData.processedDate}</div>
+                  {magData.saved && <div style={{ color: '#16a34a', fontWeight: '600' }}>✓ Saved to database</div>}
                 </div>
-                <div style={{ marginTop: '12px', fontSize: '13px', color: '#64748b' }}>
-                  Preview (first 8 points):
-                  <pre style={{ background: '#0b1220', color: '#e5e7eb', padding: '10px', borderRadius: '8px', overflowX: 'auto', marginTop: '8px' }}>
-                    {magData.data.slice(0, 8).map(p => `${p.field}\t${p.moment}`).join('\n')}
-                  </pre>
-                </div>
+
+                {magRecord?.data?.length > 0 && (
+                  <div style={{ marginTop: '14px' }}>
+                    <MagneticPlot record={magRecord} title={`M-H loop — ${magData.filename}`} />
+                  </div>
+                )}
               </div>
             ) : (
-              <div style={{ color: '#64748b' }}>No magnetic file loaded yet.</div>
+              <div style={{ color: '#64748b' }}>
+                {history.length === 0
+                  ? 'Create a sample in the Sample Database tab first, then select it here.'
+                  : 'Select a sample, choose M-H or M-T, and upload your .DAT file.'}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'ai' && (
+          <div style={cardStyle}>
+            <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#1a202c', marginBottom: '8px' }}>
+              AI Discovery
+            </h2>
+            <p style={{ color: '#64748b', marginTop: 0, marginBottom: '16px' }}>
+              Closed-loop AI: parse lab notes, rank dopants, copilot over your samples, and generate experiment briefs.
+            </p>
+
+            {aiStatus && (
+              <div style={{
+                marginBottom: '20px',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                background: aiStatus.llmAvailable ? '#ecfdf5' : '#fffbeb',
+                border: `1px solid ${aiStatus.llmAvailable ? '#6ee7b7' : '#fcd34d'}`,
+                fontSize: '13px',
+                color: aiStatus.llmAvailable ? '#065f46' : '#92400e',
+              }}>
+                <strong>LLM:</strong>{' '}
+                {aiStatus.llmAvailable
+                  ? `Connected (${aiStatus.model}) — full copilot & briefs enabled`
+                  : 'Offline mode — set OPENAI_API_KEY in backend/.env for full LLM. Heuristic ranker & regex parser still work.'}
+              </div>
+            )}
+
+            {error && activeTab === 'ai' && (
+              <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#dc2626', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
+                {error}
+              </div>
+            )}
+
+            {uploadMessage && activeTab === 'ai' && (
+              <div style={{ background: '#dcfce7', border: '1px solid #86efac', color: '#166534', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px' }}>
+                {uploadMessage}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '16px', marginBottom: '20px', flexWrap: 'wrap' }}>
+              <SamplePicker
+                samples={history}
+                value={selectedSampleId}
+                onChange={setSelectedSampleId}
+                disabled={loading || aiLoading}
+              />
+              <button
+                disabled={!selectedSampleId || aiLoading}
+                onClick={() => handleRecommend(selectedSampleId)}
+                style={{ padding: '12px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
+              >
+                Rank next experiments
+              </button>
+              <button
+                disabled={!selectedSampleId || aiLoading}
+                onClick={() => handleExperimentBrief(selectedSampleId)}
+                style={{ padding: '12px 16px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
+              >
+                Experiment brief
+              </button>
+            </div>
+
+            {lastRecommendations?.recommendations?.length > 0 && (
+              <div style={{ marginBottom: '20px', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px' }}>
+                <h3 style={{ margin: '0 0 12px', fontSize: '16px', color: '#1e293b' }}>Latest recommendations</h3>
+                <p style={{ fontSize: '13px', color: '#64748b', marginTop: 0 }}>{lastRecommendations.summary}</p>
+                {lastRecommendations.recommendations.map((rec, i) => (
+                  <div key={i} style={{ marginBottom: '10px', padding: '12px', background: '#f8fafc', borderRadius: '8px', fontSize: '13px' }}>
+                    <div style={{ fontWeight: '600', color: '#4338ca' }}>{rec.suggestedFormula}</div>
+                    <div style={{ color: '#64748b', marginTop: '4px' }}>Confidence: {(rec.confidence * 100).toFixed(0)}%</div>
+                    <div style={{ marginTop: '6px', color: '#475569' }}>{rec.rationale}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', marginBottom: '20px' }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: '16px', color: '#1e293b' }}>Lab copilot</h3>
+              <textarea
+                value={copilotQuestion}
+                onChange={(e) => setCopilotQuestion(e.target.value)}
+                placeholder="e.g. Which samples show τ-phase? What dopant should we try next?"
+                rows={3}
+                style={{ ...inputStyle, width: '100%', marginBottom: '10px', resize: 'vertical' }}
+              />
+              <button
+                disabled={aiLoading || !copilotQuestion.trim()}
+                onClick={handleCopilot}
+                style={{ padding: '10px 16px', background: '#667eea', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+              >
+                {aiLoading ? 'Thinking…' : 'Ask copilot'}
+              </button>
+              {copilotAnswer && (
+                <div style={{ marginTop: '14px', padding: '14px', background: '#f8fafc', borderRadius: '8px', fontSize: '14px', color: '#334155' }}>
+                  {copilotSource && (
+                    <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px' }}>Source: {copilotSource}</div>
+                  )}
+                  <pre style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit' }}>{copilotAnswer}</pre>
+                </div>
+              )}
+            </div>
+
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px' }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: '16px', color: '#1e293b' }}>Parse synthesis notes</h3>
+              <textarea
+                value={synthesisNotes}
+                onChange={(e) => setSynthesisNotes(e.target.value)}
+                placeholder="Paste lab notebook text, e.g. Arc melted MnAl, annealed 450°C for 2h, 5% C doping..."
+                rows={4}
+                style={{ ...inputStyle, width: '100%', marginBottom: '10px', resize: 'vertical' }}
+              />
+              <button
+                disabled={aiLoading || !synthesisNotes.trim()}
+                onClick={handleParseSynthesis}
+                style={{ padding: '10px 16px', background: '#4338ca', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', marginRight: '10px' }}
+              >
+                Parse with AI
+              </button>
+              {parsedSynthesis && (
+                <div style={{ marginTop: '14px' }}>
+                  <pre style={{ background: '#0b1220', color: '#e5e7eb', padding: '12px', borderRadius: '8px', fontSize: '13px', overflow: 'auto' }}>
+                    {JSON.stringify(parsedSynthesis, null, 2)}
+                  </pre>
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1, minWidth: '200px' }}>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#4a5568', marginBottom: '8px' }}>
+                        Apply to sample
+                      </label>
+                      <select
+                        value={applySampleId}
+                        onChange={(e) => setApplySampleId(e.target.value)}
+                        style={{ width: '100%', padding: '10px', border: '2px solid #e2e8f0', borderRadius: '8px' }}
+                      >
+                        <option value="">Select sample…</option>
+                        {history.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name || s.formula}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      disabled={!applySampleId || aiLoading}
+                      onClick={handleApplySynthesis}
+                      style={{ padding: '10px 16px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                    >
+                      Apply to sample
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {detailBrief && (
+              <div style={{ marginTop: '20px', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px' }}>
+                <h3 style={{ margin: '0 0 12px', fontSize: '16px' }}>Latest experiment brief</h3>
+                <pre style={{ whiteSpace: 'pre-wrap', fontSize: '14px', margin: 0, fontFamily: 'inherit', color: '#334155' }}>{detailBrief}</pre>
+              </div>
             )}
           </div>
         )}

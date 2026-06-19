@@ -1,0 +1,242 @@
+"""Physics Copilot agent — one chat endpoint that orchestrates the existing
+tools (sample analysis, ranker, brief) plus deterministic physics calculators,
+then narrates the result with a free LLM (Gemini) grounded only in tool output.
+"""
+
+import json
+from typing import Any, Optional
+
+from bson import ObjectId
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+
+import database
+import local_store
+from auth import verify_token
+from services.dopant_ranker import rank_dopant_recommendations
+from services.experiment_brief import generate_experiment_brief
+from services.llm_client import active_model, chat_completion, llm_available
+from services.phase_detector import detect_tau_mnal
+from services.physics_calculators import analyze_sample_physics
+from services.sample_context import build_samples_context
+
+router = APIRouter(prefix="/api/agent", tags=["agent"])
+
+
+class AgentMessage(BaseModel):
+    role: str
+    content: str
+
+
+class AgentChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=6000)
+    sample_id: Optional[str] = None
+    history: list[AgentMessage] = []
+
+
+def _serialize(doc: dict) -> dict:
+    if not database.DB_AVAILABLE:
+        return local_store._serialize(doc)  # noqa: SLF001
+    doc = dict(doc)
+    doc["id"] = str(doc.pop("_id"))
+    for key in ("createdAt", "updatedAt"):
+        if key in doc and doc[key] and hasattr(doc[key], "isoformat"):
+            doc[key] = doc[key].isoformat()
+    return doc
+
+
+async def _full_sample(user_id: str, sample_id: str) -> Optional[dict]:
+    if database.DB_AVAILABLE:
+        if not ObjectId.is_valid(sample_id):
+            return None
+        sample = await database.db.samples.find_one(
+            {"_id": ObjectId(sample_id), "userId": user_id}
+        )
+        if not sample:
+            return None
+        payload = _serialize(sample)
+        payload["xrdRecords"] = [
+            _serialize(d)
+            async for d in database.db.xrd.find(
+                {"userId": user_id, "sampleId": sample_id}
+            ).sort("createdAt", -1)
+        ]
+        payload["magneticRecords"] = [
+            _serialize(d)
+            async for d in database.db.magnetic.find(
+                {"userId": user_id, "sampleId": sample_id}
+            ).sort("createdAt", -1)
+        ]
+        return payload
+
+    return local_store.get_sample(sample_id, user_id)
+
+
+async def _all_samples(user_id: str, project_name: Optional[str] = None) -> list[dict]:
+    if database.DB_AVAILABLE:
+        query: dict = {"userId": user_id}
+        if project_name:
+            query["projectName"] = project_name
+        return [_serialize(d) async for d in database.db.samples.find(query).sort("createdAt", -1)]
+    return [_serialize(d) for d in local_store.find_samples(user_id, project_name)]
+
+
+def _detect_intents(message: str) -> set[str]:
+    m = message.lower()
+    intents: set[str] = set()
+    if any(w in m for w in ["next", "recommend", "suggest", "what should", "try next", "improve"]):
+        intents.add("recommend")
+    if any(w in m for w in ["brief", "report", "summary", "write up", "document"]):
+        intents.add("brief")
+    if any(
+        w in m
+        for w in [
+            "analyz", "analyse", "phase", "lattice", "crystallite", "size",
+            "scherrer", "bragg", "bhmax", "energy product", "coerciv", "ms",
+            "magnet", "hysteresis", "what did i get", "characteriz", "result",
+        ]
+    ):
+        intents.add("analyze")
+    return intents
+
+
+@router.get("/status")
+async def agent_status(_user=Depends(verify_token)):
+    return {
+        "llmAvailable": llm_available(),
+        "model": active_model(),
+        "tools": [
+            "analyze_sample (phase, lattice, crystallite size, magnetics, BHmax)",
+            "rank_experiments",
+            "experiment_brief",
+            "literature_grounding (roadmap)",
+        ],
+    }
+
+
+@router.post("/chat")
+async def agent_chat(payload: AgentChatRequest, user=Depends(verify_token)):
+    user_id = user["userId"]
+    intents = _detect_intents(payload.message)
+
+    sample = None
+    if payload.sample_id:
+        sample = await _full_sample(user_id, payload.sample_id)
+
+    tools_used: list[str] = []
+    analysis: Optional[dict] = None
+    recommendations: Optional[list] = None
+    rec_summary: Optional[str] = None
+    brief: Optional[str] = None
+    xrd_record = None
+    mag_record = None
+
+    # If a sample is in focus, always run the physics bundle (cheap + grounding).
+    if sample:
+        if not sample.get("phaseAnalysis"):
+            xr = (sample.get("xrdRecords") or [{}])[0]
+            if xr.get("peaks"):
+                sample["phaseAnalysis"] = detect_tau_mnal(xr["peaks"])
+        analysis = analyze_sample_physics(sample)
+        tools_used.append("analyze_sample")
+        if sample.get("xrdRecords"):
+            xrd_record = sample["xrdRecords"][0]
+        if sample.get("magneticRecords"):
+            mag_record = sample["magneticRecords"][0]
+
+    if "recommend" in intents:
+        project_name = sample.get("projectName") if sample else None
+        family = sample.get("materialFamily", "mnal_tau") if sample else "mnal_tau"
+        project_docs = await _all_samples(user_id, project_name)
+        ranked = rank_dopant_recommendations(
+            project_docs, material_family=family, project_name=project_name, limit=3
+        )
+        recommendations = ranked["recommendations"]
+        rec_summary = ranked["summary"]
+        tools_used.append("rank_experiments")
+
+    if "brief" in intents and sample:
+        recs = recommendations or (sample.get("aiRecommendations") or [])
+        project_docs = await _all_samples(user_id, sample.get("projectName"))
+        brief_result = await generate_experiment_brief(sample, recs, project_docs)
+        brief = brief_result.get("markdown")
+        tools_used.append("experiment_brief")
+
+    # Build grounding context for the LLM (it may ONLY use these facts).
+    all_samples = await _all_samples(user_id)
+    context_parts = [build_samples_context(all_samples, focus_sample_id=payload.sample_id)]
+    if analysis:
+        context_parts.append("PHYSICS ANALYSIS (computed, authoritative):\n" + json.dumps(analysis, indent=2))
+    if recommendations:
+        context_parts.append("RANKED EXPERIMENTS:\n" + json.dumps(recommendations, indent=2))
+    context = "\n\n".join(context_parts)
+
+    history_text = "\n".join(f"{m.role}: {m.content}" for m in payload.history[-6:])
+
+    if llm_available():
+        system = (
+            "You are ElementX Copilot, an autonomous assistant for condensed-matter / "
+            "materials-physics labs (rare-earth-free permanent magnets). "
+            "You are given COMPUTED tool outputs and sample records. "
+            "Rules: (1) Use ONLY numbers present in the context — never invent peak positions, "
+            "lattice parameters, or magnetic values. (2) Cite the calculator/formula when you state a number. "
+            "(3) Be concise and quantitative. (4) If a measurement is missing, say which experiment to run. "
+            "(5) End with a short 'Next steps' list when relevant."
+        )
+        user_msg = (
+            f"Conversation so far:\n{history_text}\n\n"
+            f"Grounding context:\n{context}\n\n"
+            f"User request: {payload.message}"
+        )
+        answer, source = await chat_completion(system, user_msg, max_tokens=1800)
+    else:
+        answer = _offline_answer(payload.message, analysis, recommendations, rec_summary, sample)
+        source = "heuristic"
+
+    return {
+        "answer": answer,
+        "source": source,
+        "model": active_model(),
+        "toolsUsed": tools_used,
+        "analysis": analysis,
+        "recommendations": recommendations,
+        "recommendationSummary": rec_summary,
+        "brief": brief,
+        "xrdRecord": xrd_record,
+        "magneticRecord": mag_record,
+        "sampleId": payload.sample_id,
+    }
+
+
+def _offline_answer(message, analysis, recommendations, rec_summary, sample) -> str:
+    lines = ["(Offline mode — set GEMINI_API_KEY in backend/.env for full natural-language answers.)\n"]
+    if sample:
+        lines.append(f"Sample: {sample.get('name')} ({sample.get('formula')})")
+    if analysis:
+        phase = analysis.get("phase") or {}
+        if phase:
+            lines.append(
+                f"Phase τ-MnAl: {'DETECTED' if phase.get('tauDetected') else 'not detected'}"
+                + (f" ({phase.get('matchedPeakCount')}/3 peaks)" if phase.get("tauDetected") else "")
+            )
+        lat = analysis.get("lattice") or {}
+        if lat.get("ok"):
+            lines.append(f"Lattice a (cubic est.): {lat.get('lattice_a_cubic')} Å — {lat.get('formula')}")
+        cs = analysis.get("crystallite") or {}
+        if cs.get("ok"):
+            lines.append(f"Crystallite size: {cs.get('crystallite_size_nm')} nm (Scherrer)")
+        mag = analysis.get("magnetics") or {}
+        if mag.get("ok"):
+            lines.append(
+                f"Magnetics: Ms={mag.get('Ms_emu_g')} emu/g, Hc={mag.get('Hc_Oe')} Oe, "
+                f"squareness={mag.get('squareness_Mr_Ms')}, (BH)max≈{mag.get('bhmax_estimate_MGOe')} MGOe"
+            )
+    if recommendations:
+        lines.append("\nNext experiments:")
+        for i, r in enumerate(recommendations, 1):
+            lines.append(f"  {i}. {r.get('suggestedFormula')} (conf {r.get('confidence')}) — {r.get('rationale')}")
+    if rec_summary:
+        lines.append(f"\n{rec_summary}")
+    if len(lines) <= 1:
+        lines.append("Ask me to analyze a sample, recommend next experiments, or write a brief. Select a sample for physics analysis.")
+    return "\n".join(lines)
