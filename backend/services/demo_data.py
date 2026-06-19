@@ -1,4 +1,4 @@
-"""Generate synthetic XRD / VSM curves for demo and pitch sessions."""
+"""Synthetic XRD/VSM curves for the demo account."""
 
 import numpy as np
 

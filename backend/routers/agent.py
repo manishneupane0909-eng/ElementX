@@ -1,7 +1,4 @@
-"""Physics Copilot agent — one chat endpoint that orchestrates the existing
-tools (sample analysis, ranker, brief) plus deterministic physics calculators,
-then narrates the result with a free LLM (Gemini) grounded only in tool output.
-"""
+"""Chat route — runs calculators and ranker, then summarizes results."""
 
 import json
 from typing import Any, Optional
@@ -162,7 +159,7 @@ async def agent_chat(payload: AgentChatRequest, user=Depends(verify_token)):
         brief = brief_result.get("markdown")
         tools_used.append("experiment_brief")
 
-    # Build grounding context for the LLM (it may ONLY use these facts).
+    # Context passed to text generation — numbers come from calculators only.
     all_samples = await _all_samples(user_id)
     context_parts = [build_samples_context(all_samples, focus_sample_id=payload.sample_id)]
     if analysis:
@@ -175,13 +172,10 @@ async def agent_chat(payload: AgentChatRequest, user=Depends(verify_token)):
 
     if llm_available():
         system = (
-            "You are ElementX Copilot, an autonomous assistant for condensed-matter / "
-            "materials-physics labs (rare-earth-free permanent magnets). "
-            "You are given COMPUTED tool outputs and sample records. "
-            "Rules: (1) Use ONLY numbers present in the context — never invent peak positions, "
-            "lattice parameters, or magnetic values. (2) Cite the calculator/formula when you state a number. "
-            "(3) Be concise and quantitative. (4) If a measurement is missing, say which experiment to run. "
-            "(5) End with a short 'Next steps' list when relevant."
+            "You help with permanent magnet lab work (MnAl, MnBi, etc.). "
+            "Use only the sample records and computed numbers below — do not invent peaks or magnetic values. "
+            "Cite the formula when you quote a number. Keep it short. "
+            "If something was not measured, say what to run next."
         )
         user_msg = (
             f"Conversation so far:\n{history_text}\n\n"
@@ -209,7 +203,7 @@ async def agent_chat(payload: AgentChatRequest, user=Depends(verify_token)):
 
 
 def _offline_answer(message, analysis, recommendations, rec_summary, sample) -> str:
-    lines = ["(Offline mode — set GEMINI_API_KEY in backend/.env for full natural-language answers.)\n"]
+    lines = ["(No API key in backend/.env — showing calculated results only.)\n"]
     if sample:
         lines.append(f"Sample: {sample.get('name')} ({sample.get('formula')})")
     if analysis:
@@ -238,5 +232,5 @@ def _offline_answer(message, analysis, recommendations, rec_summary, sample) -> 
     if rec_summary:
         lines.append(f"\n{rec_summary}")
     if len(lines) <= 1:
-        lines.append("Ask me to analyze a sample, recommend next experiments, or write a brief. Select a sample for physics analysis.")
+        lines.append("Select a sample, then ask for analysis, next alloy ideas, or a brief.")
     return "\n".join(lines)

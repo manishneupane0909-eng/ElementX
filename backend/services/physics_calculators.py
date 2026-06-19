@@ -1,9 +1,4 @@
-"""Deterministic physics calculators for XRD and magnetometry.
-
-Every function here is closed-form and auditable — the LLM never produces
-these numbers, it only narrates them. Each result includes the formula and
-assumptions used so the output is verifiable.
-"""
+"""Bragg, Scherrer, and magnet summary helpers for linked sample data."""
 
 import math
 from typing import Any, Optional

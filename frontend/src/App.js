@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calculator, Database, LineChart, Magnet, Download, Copy, LogOut, Upload, Save, Sparkles, Bot, Send } from 'lucide-react';
+import { Calculator, Database, LineChart, Magnet, Download, Copy, LogOut, Upload, Save, MessageSquare, FileText, Send } from 'lucide-react';
 import api from './api/api';
 import { XRDPlot, MagneticPlot } from './components/Plots';
 
@@ -134,10 +134,10 @@ function LoginForm({ onLogin, onDemo }) {
             ElementX
           </h1>
           <p style={{ fontSize: '14px', color: '#718096', margin: 0 }}>
-            AI-powered discovery for critical materials
+            MnAl lab tools — stoichiometry, XRD, magnetometry
           </p>
           <p style={{ fontSize: '12px', color: '#a0aec0', margin: '8px 0 0' }}>
-            Rare-earth-free magnets · XRD · VSM · dopant AI
+            RE-free magnets · sample tracking
           </p>
         </div>
 
@@ -283,7 +283,7 @@ function LoginForm({ onLogin, onDemo }) {
                 marginBottom: '15px',
               }}
             >
-              {demoLoading ? 'Loading demo lab…' : '▶ Try live demo (1 click)'}
+              {demoLoading ? 'Loading…' : 'Try demo'}
             </button>
           )}
 
@@ -477,7 +477,7 @@ function SampleDetailPanel({
 
       <div style={{ marginTop: '16px', marginBottom: '14px' }}>
         <div style={{ fontSize: '13px', fontWeight: '600', color: '#334155', marginBottom: '8px' }}>
-          Outcome label (trains AI ranker)
+          Outcome (feeds the dopant ranker)
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {outcomeBtn('Success', 'success', '#16a34a')}
@@ -497,7 +497,7 @@ function SampleDetailPanel({
           onClick={() => onRecommend && onRecommend(sample.id)}
           style={{ padding: '8px 12px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}
         >
-          {aiLoading ? 'Running…' : 'AI: Rank next experiments'}
+          {aiLoading ? 'Running…' : 'Suggest next alloy'}
         </button>
         <button
           disabled={aiLoading}
@@ -510,7 +510,7 @@ function SampleDetailPanel({
 
       {recommendations.length > 0 && (
         <div style={{ marginBottom: '16px', background: 'white', borderRadius: '8px', padding: '14px', border: '1px solid #e2e8f0' }}>
-          <div style={{ fontWeight: '600', marginBottom: '10px', color: '#1e293b' }}>AI recommendations</div>
+          <div style={{ fontWeight: '600', marginBottom: '10px', color: '#1e293b' }}>Suggested next runs</div>
           {recommendations.map((rec, i) => (
             <div key={i} style={{ marginBottom: '10px', padding: '10px', background: '#f8fafc', borderRadius: '6px', fontSize: '13px' }}>
               <div style={{ fontWeight: '600', color: '#4338ca' }}>{rec.suggestedFormula}</div>
@@ -562,12 +562,12 @@ function AnalysisCard({ analysis }) {
   );
 }
 
-function CopilotTab({ samples, selectedSampleId, setSelectedSampleId, cardStyle, inputStyle, onLoadDemo }) {
+function LabChatTab({ samples, selectedSampleId, setSelectedSampleId, cardStyle, inputStyle, onLoadDemo }) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
       text:
-        'Hi — I\'m ElementX Copilot. Select a sample, then ask me to analyze it, recommend the next experiment, or write a brief. You can also upload XRD/VSM files right here.',
+        'Pick a sample and ask about phase, lattice, coercivity, or what to try next. You can upload XRD/VSM files here too.',
     },
   ]);
   const [input, setInput] = useState('');
@@ -633,11 +633,11 @@ function CopilotTab({ samples, selectedSampleId, setSelectedSampleId, cardStyle,
     <div style={cardStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
         <h2 style={{ fontSize: '20px', fontWeight: 600, color: '#1a202c', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Bot size={22} /> Physics Copilot
+          <MessageSquare size={22} /> Lab chat
         </h2>
         {status && (
           <span style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '999px', background: status.llmAvailable ? '#ecfdf5' : '#fffbeb', color: status.llmAvailable ? '#065f46' : '#92400e', border: `1px solid ${status.llmAvailable ? '#6ee7b7' : '#fcd34d'}` }}>
-            {status.llmAvailable ? `LLM: ${status.model}` : 'Offline mode — set GEMINI_API_KEY (free)'}
+            {status.llmAvailable ? 'Online' : 'Offline — add GEMINI_API_KEY in backend/.env'}
           </span>
         )}
       </div>
@@ -651,7 +651,7 @@ function CopilotTab({ samples, selectedSampleId, setSelectedSampleId, cardStyle,
             onClick={onLoadDemo}
             style={{ padding: '10px 18px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', cursor: busy ? 'wait' : 'pointer', fontWeight: 600 }}
           >
-            Load demo lab (3 MnAl samples + AI)
+            Load demo lab (3 MnAl samples)
           </button>
         </div>
       )}
@@ -677,7 +677,7 @@ function CopilotTab({ samples, selectedSampleId, setSelectedSampleId, cardStyle,
       <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', background: '#fbfcfe', maxHeight: '560px', overflowY: 'auto' }}>
         {messages.map((m, i) => (
           <div key={i} style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>{m.role === 'user' ? 'You' : 'Copilot'}</div>
+            <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>{m.role === 'user' ? 'You' : 'Reply'}</div>
             <div style={{ maxWidth: '85%', background: m.role === 'user' ? '#667eea' : 'white', color: m.role === 'user' ? 'white' : '#1f2937', border: m.role === 'user' ? 'none' : '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 14px' }}>
               <pre style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', fontSize: '14px', lineHeight: 1.5 }}>{m.text}</pre>
               {m.payload?.analysis && <AnalysisCard analysis={m.payload.analysis} />}
@@ -701,15 +701,10 @@ function CopilotTab({ samples, selectedSampleId, setSelectedSampleId, cardStyle,
                   ))}
                 </div>
               )}
-              {m.payload?.source && (
-                <div style={{ fontSize: '10px', color: '#cbd5e1', marginTop: '8px' }}>
-                  {m.payload.source}{m.payload.toolsUsed?.length ? ` · tools: ${m.payload.toolsUsed.join(', ')}` : ''}
-                </div>
-              )}
             </div>
           </div>
         ))}
-        {busy && <div style={{ color: '#94a3b8', fontSize: '13px' }}>Copilot is thinking…</div>}
+        {busy && <div style={{ color: '#94a3b8', fontSize: '13px' }}>Working on it…</div>}
       </div>
 
       <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
@@ -888,7 +883,7 @@ function App() {
       setCopilotAnswer(result.answer || '');
       setCopilotSource(result.source || '');
     } catch (err) {
-      setError(err.message || 'Copilot failed');
+      setError(err.message || 'Request failed');
     } finally {
       setAiLoading(false);
     }
@@ -945,7 +940,7 @@ function App() {
     });
     handleLogin(loginResult.user, {
       tab: 'copilot',
-      message: boot.message || 'Demo lab loaded — try the Physics Copilot: select a sample and ask it to analyze.',
+      message: boot.message || 'Demo lab loaded — pick a sample in Lab chat.',
     });
     if (boot.recommendations?.length) {
       setLastRecommendations({
@@ -1252,7 +1247,7 @@ function App() {
             </div>
             <div>
               <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#1a202c', margin: 0 }}>ElementX</h1>
-              <p style={{ fontSize: '12px', color: '#718096', margin: 0 }}>AI discovery · RE-free magnets · Lab loop</p>
+              <p style={{ fontSize: '12px', color: '#718096', margin: 0 }}>MnAl · XRD · VSM · lab notebook</p>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -1293,12 +1288,12 @@ function App() {
           gap: '8px'
         }}>
           {[
-            { id: 'copilot', label: 'Physics Copilot', icon: Bot },
+            { id: 'copilot', label: 'Lab chat', icon: MessageSquare },
             { id: 'calc', label: 'Stoichiometry Calculator', icon: Calculator },
             { id: 'history', label: 'Sample Database', icon: Database },
             { id: 'xrd', label: 'XRD Analysis', icon: LineChart },
             { id: 'mag', label: 'Magnetic Properties', icon: Magnet },
-            { id: 'ai', label: 'AI Discovery', icon: Sparkles }
+            { id: 'ai', label: 'Notes & parsing', icon: FileText }
           ].map(tab => {
             const Icon = tab.icon;
             return (
@@ -1356,7 +1351,7 @@ function App() {
         )}
 
         {activeTab === 'copilot' && (
-          <CopilotTab
+          <LabChatTab
             samples={history}
             selectedSampleId={selectedSampleId}
             setSelectedSampleId={setSelectedSampleId}
@@ -1563,7 +1558,7 @@ function App() {
                   }}
                   style={{ padding: '12px 20px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
                 >
-                  Load demo lab (3 MnAl samples + AI)
+                  Load demo lab (3 MnAl samples)
                 </button>
               </div>
             ) : (
@@ -1803,10 +1798,10 @@ function App() {
         {activeTab === 'ai' && (
           <div style={cardStyle}>
             <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#1a202c', marginBottom: '8px' }}>
-              AI Discovery
+              Notes & parsing
             </h2>
             <p style={{ color: '#64748b', marginTop: 0, marginBottom: '16px' }}>
-              Closed-loop AI: parse lab notes, rank dopants, copilot over your samples, and generate experiment briefs.
+              Parse notebook text, rank dopants from past outcomes, ask questions about your samples, export a brief.
             </p>
 
             {aiStatus && (
@@ -1819,10 +1814,10 @@ function App() {
                 fontSize: '13px',
                 color: aiStatus.llmAvailable ? '#065f46' : '#92400e',
               }}>
-                <strong>LLM:</strong>{' '}
+                <strong>Text generation:</strong>{' '}
                 {aiStatus.llmAvailable
-                  ? `Connected (${aiStatus.model}) — full copilot & briefs enabled`
-                  : 'Offline mode — set OPENAI_API_KEY in backend/.env for full LLM. Heuristic ranker & regex parser still work.'}
+                  ? `On (${aiStatus.model})`
+                  : 'Off — add GEMINI_API_KEY in backend/.env. Ranker and regex parser still work.'}
               </div>
             )}
 
@@ -1876,7 +1871,7 @@ function App() {
             )}
 
             <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', marginBottom: '20px' }}>
-              <h3 style={{ margin: '0 0 12px', fontSize: '16px', color: '#1e293b' }}>Lab copilot</h3>
+              <h3 style={{ margin: '0 0 12px', fontSize: '16px', color: '#1e293b' }}>Ask about your samples</h3>
               <textarea
                 value={copilotQuestion}
                 onChange={(e) => setCopilotQuestion(e.target.value)}
@@ -1889,13 +1884,10 @@ function App() {
                 onClick={handleCopilot}
                 style={{ padding: '10px 16px', background: '#667eea', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
               >
-                {aiLoading ? 'Thinking…' : 'Ask copilot'}
+                {aiLoading ? 'Working…' : 'Ask'}
               </button>
               {copilotAnswer && (
                 <div style={{ marginTop: '14px', padding: '14px', background: '#f8fafc', borderRadius: '8px', fontSize: '14px', color: '#334155' }}>
-                  {copilotSource && (
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px' }}>Source: {copilotSource}</div>
-                  )}
                   <pre style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit' }}>{copilotAnswer}</pre>
                 </div>
               )}
@@ -1915,7 +1907,7 @@ function App() {
                 onClick={handleParseSynthesis}
                 style={{ padding: '10px 16px', background: '#4338ca', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', marginRight: '10px' }}
               >
-                Parse with AI
+                Parse notes
               </button>
               {parsedSynthesis && (
                 <div style={{ marginTop: '14px' }}>

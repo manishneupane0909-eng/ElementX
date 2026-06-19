@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 import database
 import local_store
 from auth import verify_token
-from services.llm_client import chat_completion, llm_available
+from services.llm_client import active_model, chat_completion, llm_available
 from services.sample_context import build_samples_context, heuristic_copilot_answer
 from services.synthesis_parser import parse_synthesis_notes
 
@@ -42,11 +42,9 @@ async def _load_user_samples(user_id: str, project_name: str | None = None) -> l
 
 @router.get("/status")
 async def ai_status(_user=Depends(verify_token)):
-    import os
-
     return {
         "llmAvailable": llm_available(),
-        "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        "model": active_model(),
         "features": [
             "parse-synthesis",
             "copilot",
@@ -70,9 +68,9 @@ async def copilot(payload: CopilotRequest, user=Depends(verify_token)):
 
     if llm_available():
         system = (
-            "You are Forge AI, a lab copilot for critical materials R&D (rare-earth-free magnets). "
-            "Answer using ONLY the sample context below. Reference sample names/ids when relevant. "
-            "If data is missing, say what measurement to run next. Never invent XRD peaks or magnetic values."
+            "You help with magnet materials lab work. "
+            "Answer using only the sample context below. Reference sample names when relevant. "
+            "If data is missing, say what to measure next. Do not invent XRD peaks or magnetic values."
         )
         user_msg = f"Context:\n{context}\n\nQuestion: {payload.question}"
         answer, source = await chat_completion(system, user_msg, max_tokens=1500)

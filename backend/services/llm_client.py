@@ -15,7 +15,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 
-# Google Gemini — free tier via Google AI Studio (https://aistudio.google.com/apikey).
+# Optional text generation via Gemini (see backend/.env).
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_BASE_URL = os.getenv(
@@ -53,8 +53,7 @@ async def _gemini_chat(system: str, user: str, temperature: float, max_tokens: i
         "temperature": temperature,
         "maxOutputTokens": max_tokens,
     }
-    # 2.5 models "think" by default and can spend the whole token budget on
-    # reasoning; disable it for these short, grounded narrations.
+    # 2.5 models spend tokens on internal reasoning; turn that off for short replies.
     if GEMINI_MODEL.startswith("gemini-2.5"):
         generation_config["thinkingConfig"] = {"thinkingBudget": 0}
 
@@ -132,21 +131,21 @@ def _heuristic_fallback(system: str, user: str) -> str:
     if "experiment brief" in system.lower() or "Experiment Brief" in user:
         return _template_brief_from_context(user)
     return (
-        "AI copilot is running in offline mode (set OPENAI_API_KEY in backend/.env for full LLM answers). "
-        "Use the structured sample data and recommendations below to guide your next experiments."
+        "Text generation is off (add GEMINI_API_KEY to backend/.env). "
+        "Use the sample list and ranked suggestions below."
     )
 
 
 def _template_brief_from_context(user: str) -> str:
     return (
-        "# Experiment Brief (offline template)\n\n"
-        "Set `OPENAI_API_KEY` in backend/.env to generate a full narrative brief.\n\n"
-        "## Context summary\n\n"
+        "# Experiment brief (template)\n\n"
+        "Add GEMINI_API_KEY to backend/.env for a full write-up.\n\n"
+        "## Context\n\n"
         f"{user[:4000]}\n\n"
-        "## Suggested next steps\n\n"
-        "1. Run ranked dopant recommendations from the AI panel.\n"
-        "2. Characterize with XRD and VSM; link uploads to the sample record.\n"
-        "3. Label outcomes (success / partial / fail) to improve future rankings.\n"
+        "## Next steps\n\n"
+        "1. Run dopant ranking on the sample.\n"
+        "2. Upload XRD and VSM; link them to the sample record.\n"
+        "3. Set outcome (success / partial / fail) when you know how it went.\n"
     )
 
 

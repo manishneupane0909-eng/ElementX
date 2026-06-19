@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-MODEL_VERSION = "ranker-v0-heuristic"
+MODEL_VERSION = "ranker-v0"
 
 CANDIDATE_DOPANTS: dict[str, list[str]] = {
     "mnal_tau": ["C", "B", "Ga", "In", "Si", "Cu", "Zn"],

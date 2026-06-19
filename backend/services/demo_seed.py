@@ -34,7 +34,7 @@ async def seed_demo_lab(user_id: str, *, force: bool = False) -> dict:
         return {
             "success": True,
             "alreadyLoaded": True,
-            "message": "Demo lab already loaded — open Sample Database or AI Discovery.",
+            "message": "Demo lab already loaded — check Sample Database or Lab chat.",
             "sampleIds": ids,
             "projectName": DEMO_PROJECT,
         }
@@ -199,7 +199,7 @@ async def seed_demo_lab(user_id: str, *, force: bool = False) -> dict:
     return {
         "success": True,
         "alreadyLoaded": False,
-        "message": f"Loaded {len(created_ids)} demo samples with XRD, magnetometry, and AI recommendations.",
+        "message": f"Loaded {len(created_ids)} demo samples with XRD, VSM, and sample suggestions.",
         "sampleIds": created_ids,
         "projectName": DEMO_PROJECT,
         "stats": {
@@ -208,5 +208,5 @@ async def seed_demo_lab(user_id: str, *, force: bool = False) -> dict:
             "recommendationsReady": True,
         },
         "recommendations": ranked["recommendations"],
-        "pitchHint": "Open AI Discovery → ask copilot about τ-phase, or view DEMO MnAl-C 5% in Sample Database.",
+        "pitchHint": "Open Lab chat or Sample Database and try DEMO MnAl-C 5%.",
     }

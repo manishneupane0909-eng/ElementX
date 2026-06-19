@@ -27,7 +27,7 @@ async def _seed_into_local(user_id: str, force: bool) -> dict:
         return {
             "success": True,
             "alreadyLoaded": True,
-            "message": "Demo lab already loaded — open Sample Database or AI Discovery.",
+            "message": "Demo lab already loaded — check Sample Database or Lab chat.",
             "sampleIds": [str(s["_id"]) for s in samples],
             "projectName": DEMO_PROJECT,
             "localMode": True,
@@ -155,7 +155,7 @@ async def _seed_into_local(user_id: str, force: bool) -> dict:
         "projectName": DEMO_PROJECT,
         "stats": {"samples": len(created_ids), "tauPhaseDetected": 1, "recommendationsReady": True},
         "recommendations": ranked["recommendations"],
-        "pitchHint": "Open AI Discovery → ask copilot about τ-phase, or view DEMO MnAl-C 5% in Sample Database.",
+        "pitchHint": "Open Lab chat or Sample Database and try DEMO MnAl-C 5%.",
     }
 
 

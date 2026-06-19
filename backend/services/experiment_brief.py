@@ -27,16 +27,14 @@ Magnetic summary: {mag.get('properties')}
 
 Project sample count: {len(project_samples)}
 
-AI recommendations:
+Suggested experiments:
 {rec_text}
 """.strip()
 
     system = (
-        "You are a materials R&D assistant for rare-earth-free permanent magnet research. "
-        "Write a concise Experiment Brief suitable for a PI, grant report, or industrial R&D log. "
-        "Use markdown with sections: Executive Summary, Current Sample Status, Recommended Next Experiments "
-        "(numbered), Risk Notes, Compliance/Record-Keeping note for US supply-chain documentation. "
-        "Cite only facts from the provided context — do not invent peak positions or measured values."
+        "Write a short experiment brief for a lab notebook or advisor update. "
+        "Use markdown: summary, current sample status, numbered next steps, anything worth noting for records. "
+        "Only use facts from the context below."
     )
     user = f"Generate an experiment brief from this lab context:\n\n{context}"
 
