@@ -1,21 +1,27 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
-from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 import bcrypt
 import jwt
-import os
 import numpy as np
 from scipy.signal import find_peaks
 from datetime import datetime, timedelta
-from typing import Optional, List
-import re
-from dotenv import load_dotenv
+from typing import Optional
 from uuid import uuid4
 
-app = FastAPI(title="ElementX Python Backend")
+import database
+import local_store
+from auth import verify_token
+from routers.samples import router as samples_router
+from routers.ai import router as ai_router
+from routers.demo import router as demo_router
+from routers.agent import router as agent_router
+from services.parsers import parse_raw_file
+from services.phase_detector import detect_tau_mnal
+from services.llm_client import llm_available
+
+app = FastAPI(title="ElementX v2", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,36 +31,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-load_dotenv()
+app.include_router(samples_router)
+app.include_router(ai_router)
+app.include_router(demo_router)
+app.include_router(agent_router)
 
-MONGODB_URI = os.getenv("MONGODB_URI") or "mongodb://localhost:27017/elementx"
-client = AsyncIOMotorClient(
-    MONGODB_URI,
-    serverSelectionTimeoutMS=3000,
-    connectTimeoutMS=3000,
-)
-try:
-    db = client.get_default_database()
-except Exception:
-    db = client["elementx"]
+_LOCAL_USERS_BY_EMAIL = local_store._LOCAL_USERS_BY_EMAIL  # noqa: SLF001
 
-# MongoDB is OPTIONAL. If it's unreachable, we fall back to an in-memory store.
-DB_AVAILABLE = False
-_LOCAL_USERS_BY_EMAIL = {}  # email -> user dict with "_id" and "password" (bcrypt hash)
-
-security = HTTPBearer()
-SECRET_KEY = os.getenv("JWT_SECRET", "superlongrandomkey1234567890")
 
 @app.on_event("startup")
 async def _startup_check_db():
-    # Best-effort connectivity check so failures are obvious.
     global DB_AVAILABLE
     try:
-        await client.admin.command("ping")
-        DB_AVAILABLE = True
+        await database.client.admin.command("ping")
+        database.DB_AVAILABLE = True
         print("MongoDB: connected")
     except Exception as e:
-        DB_AVAILABLE = False
+        database.DB_AVAILABLE = False
         print(f"MongoDB: NOT connected ({type(e).__name__}: {e})")
 
 
@@ -70,33 +63,35 @@ class LoginRequest(BaseModel):
     password: str
 
 
-async def verify_token(cred: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        payload = jwt.decode(cred.credentials, SECRET_KEY, algorithms=["HS256"])
-        return payload
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(401, "Token has expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(401, "Invalid token")
-    except Exception as e:
-        raise HTTPException(401, f"Authentication error: {str(e)}")
+def _encode_token(user_id: str, email: str) -> str:
+    return jwt.encode(
+        {
+            "userId": user_id,
+            "email": email,
+            "exp": datetime.utcnow() + timedelta(days=7),
+        },
+        database.SECRET_KEY,
+        algorithm="HS256",
+    )
 
 
 @app.post("/api/auth/register")
 async def register(user: UserIn):
     try:
-        if DB_AVAILABLE:
-            if await db.users.find_one({"email": user.email}):
+        if database.DB_AVAILABLE:
+            if await database.db.users.find_one({"email": user.email}):
                 raise HTTPException(400, "Email already registered")
 
             hashed = bcrypt.hashpw(user.password.encode(), bcrypt.gensalt())
-            result = await db.users.insert_one({
-                "name": user.name,
-                "institution": user.institution,
-                "email": user.email,
-                "password": hashed,
-                "createdAt": datetime.utcnow()
-            })
+            result = await database.db.users.insert_one(
+                {
+                    "name": user.name,
+                    "institution": user.institution,
+                    "email": user.email,
+                    "password": hashed,
+                    "createdAt": datetime.utcnow(),
+                }
+            )
             user_id = str(result.inserted_id)
         else:
             if user.email in _LOCAL_USERS_BY_EMAIL:
@@ -113,149 +108,236 @@ async def register(user: UserIn):
                 "createdAt": datetime.utcnow(),
             }
 
-        token = jwt.encode({
-            "userId": user_id,
-            "email": user.email,
-            "exp": datetime.utcnow() + timedelta(days=7)
-        }, SECRET_KEY, algorithm="HS256")
-
+        token = _encode_token(user_id, user.email)
         return {
             "message": "Success",
             "token": token,
-            "user": {
-                "id": user_id,
-                "email": user.email,
-                "name": user.name
-            }
+            "user": {"id": user_id, "email": user.email, "name": user.name},
         }
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Registration error: {str(e)}")
         raise HTTPException(500, f"Registration failed: {str(e)}")
 
 
 @app.post("/api/auth/login")
 async def login(data: LoginRequest):
     try:
-        if DB_AVAILABLE:
-            user = await db.users.find_one({"email": data.email})
+        if database.DB_AVAILABLE:
+            user = await database.db.users.find_one({"email": data.email})
         else:
             user = _LOCAL_USERS_BY_EMAIL.get(data.email)
 
-        if not user:
-            raise HTTPException(401, "Invalid credentials")
-
-        if not bcrypt.checkpw(data.password.encode(), user["password"]):
+        if not user or not bcrypt.checkpw(data.password.encode(), user["password"]):
             raise HTTPException(401, "Invalid credentials")
 
         user_id = str(user["_id"])
-        token = jwt.encode({
-            "userId": user_id,
-            "email": user["email"],
-            "exp": datetime.utcnow() + timedelta(days=7)
-        }, SECRET_KEY, algorithm="HS256")
-
+        token = _encode_token(user_id, user["email"])
         return {
             "message": "Login successful",
             "token": token,
-            "user": {
-                "id": user_id,
-                "email": user["email"],
-                "name": user["name"]
-            }
+            "user": {"id": user_id, "email": user["email"], "name": user["name"]},
         }
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Login error: {str(e)}")
         raise HTTPException(500, f"Login failed: {str(e)}")
 
 
-def parse_raw_file(text: str):
-    lines = text.splitlines()
-    data = []
-    for line in lines:
-        line = line.strip()
-        if not line or line.startswith(('#', ';', '*', '!', '%')):
-            continue
-        if any(keyword in line.lower() for keyword in
-               ['theta', 'angle', 'field', 'moment', 'temp', 'intensity', 'header', 'scan']):
-            continue
-        values = re.split(r'[\s+,;]+', line)
-        values = [v.strip() for v in values if v.strip()]
-        if len(values) >= 2:
-            try:
-                x = float(values[0])
-                y = float(values[1])
-                data.append((x, y))
-            except ValueError:
-                continue
-    return data
+async def _attach_xrd_to_sample(sample_id: str, user_id: str, summary: dict):
+    if database.DB_AVAILABLE:
+        if not ObjectId.is_valid(sample_id):
+            return
+        sample = await database.db.samples.find_one(
+            {"_id": ObjectId(sample_id), "userId": user_id}
+        )
+        if not sample:
+            return
+        phase_analysis = (
+            detect_tau_mnal(summary["peaks"])
+            if sample.get("materialFamily") == "mnal_tau"
+            else None
+        )
+        await database.db.samples.update_one(
+            {"_id": ObjectId(sample_id)},
+            {
+                "$set": {
+                    "characterization.xrd": summary,
+                    "phaseAnalysis": phase_analysis,
+                    "status": "characterized",
+                    "updatedAt": datetime.utcnow(),
+                }
+            },
+        )
+        return
+
+    sample = local_store.get_raw_sample(sample_id, user_id)
+    if not sample:
+        return
+    phase_analysis = (
+        detect_tau_mnal(summary["peaks"])
+        if sample.get("materialFamily") == "mnal_tau"
+        else None
+    )
+    local_store.update_sample(
+        sample_id,
+        user_id,
+        {
+            "characterization": {
+                **(sample.get("characterization") or {}),
+                "xrd": summary,
+            },
+            "phaseAnalysis": phase_analysis,
+            "status": "characterized",
+        },
+    )
+
+
+async def _attach_magnetic_to_sample(sample_id: str, user_id: str, summary: dict):
+    if database.DB_AVAILABLE:
+        if not ObjectId.is_valid(sample_id):
+            return
+        sample = await database.db.samples.find_one(
+            {"_id": ObjectId(sample_id), "userId": user_id}
+        )
+        if not sample:
+            return
+        await database.db.samples.update_one(
+            {"_id": ObjectId(sample_id)},
+            {
+                "$set": {
+                    "characterization.magnetic": summary,
+                    "status": "characterized",
+                    "updatedAt": datetime.utcnow(),
+                }
+            },
+        )
+        return
+
+    sample = local_store.get_raw_sample(sample_id, user_id)
+    if not sample:
+        return
+    local_store.update_sample(
+        sample_id,
+        user_id,
+        {
+            "characterization": {
+                **(sample.get("characterization") or {}),
+                "magnetic": summary,
+            },
+            "status": "characterized",
+        },
+    )
 
 
 @app.post("/api/xrd/upload")
 async def upload_xrd(
-        file: UploadFile = File(...),
-        sampleId: Optional[str] = Form(None),
-        notes: Optional[str] = Form(None),
-        user=Depends(verify_token)
+    file: UploadFile = File(...),
+    sampleId: Optional[str] = Form(None),
+    notes: Optional[str] = Form(None),
+    user=Depends(verify_token),
 ):
     try:
-        content = await file.read()
-        text = content.decode('utf-8', errors='ignore')
+        text = (await file.read()).decode("utf-8", errors="ignore")
         points = parse_raw_file(text)
 
-        print(f"XRD DEBUG: Parsed {len(points)} points from {file.filename}")
-
         if len(points) < 5:
-            raise HTTPException(400,
-                                "File contains no valid numeric data. Make sure it has at least two columns of numbers (angle vs intensity).")
+            raise HTTPException(
+                400,
+                "File contains no valid numeric data. Expected angle vs intensity columns.",
+            )
 
         angles = np.array([p[0] for p in points])
         intensities = np.array([p[1] for p in points])
         peaks, _ = find_peaks(intensities, prominence=0.02 * intensities.max(), distance=10)
-        peak_list = [{"angle": float(angles[i]), "intensity": float(intensities[i])} for i in peaks]
+        peak_list = [
+            {"angle": float(angles[i]), "intensity": float(intensities[i])} for i in peaks
+        ]
 
         inserted_id = None
-        if DB_AVAILABLE:
-            result = await db.xrd.insert_one({
-                "userId": user["userId"],
-                "sampleId": sampleId,
-                "filename": file.filename,
-                "data": [{"angle": float(p[0]), "intensity": float(p[1])} for p in points],
-                "peaks": peak_list,
-                "notes": notes,
-                "createdAt": datetime.utcnow()
-            })
+        if database.DB_AVAILABLE:
+            result = await database.db.xrd.insert_one(
+                {
+                    "userId": user["userId"],
+                    "sampleId": sampleId,
+                    "filename": file.filename,
+                    "data": [{"angle": float(p[0]), "intensity": float(p[1])} for p in points],
+                    "peaks": peak_list,
+                    "notes": notes,
+                    "createdAt": datetime.utcnow(),
+                }
+            )
             inserted_id = str(result.inserted_id)
 
-        return {"success": True, "points": len(points), "peaks": len(peaks), "id": inserted_id}
+            if sampleId:
+                await _attach_xrd_to_sample(
+                    sampleId,
+                    user["userId"],
+                    {
+                        "id": inserted_id,
+                        "filename": file.filename,
+                        "peaks": peak_list,
+                        "pointCount": len(points),
+                        "uploadedAt": datetime.utcnow().isoformat(),
+                    },
+                )
+        else:
+            inserted_id = local_store.insert_xrd(
+                user["userId"],
+                sampleId,
+                {
+                    "filename": file.filename,
+                    "data": [{"angle": float(p[0]), "intensity": float(p[1])} for p in points],
+                    "peaks": peak_list,
+                    "notes": notes,
+                    "createdAt": datetime.utcnow(),
+                },
+            )
+            if sampleId:
+                await _attach_xrd_to_sample(
+                    sampleId,
+                    user["userId"],
+                    {
+                        "id": inserted_id,
+                        "filename": file.filename,
+                        "peaks": peak_list,
+                        "pointCount": len(points),
+                        "uploadedAt": datetime.utcnow().isoformat(),
+                    },
+                )
+
+        phase_analysis = detect_tau_mnal(peak_list)
+        return {
+            "success": True,
+            "points": len(points),
+            "peaks": peak_list,
+            "peakCount": len(peaks),
+            "id": inserted_id,
+            "phaseAnalysis": phase_analysis,
+        }
     except HTTPException:
         raise
     except Exception as e:
-        print(f"XRD upload error: {str(e)}")
         raise HTTPException(500, f"XRD upload failed: {str(e)}")
 
 
 @app.post("/api/magnetic/upload")
 async def upload_magnetic(
-        file: UploadFile = File(...),
-        measurementType: str = Form("M-H"),
-        sampleId: Optional[str] = Form(None),
-        notes: Optional[str] = Form(None),
-        user=Depends(verify_token)
+    file: UploadFile = File(...),
+    measurementType: str = Form("M-H"),
+    sampleId: Optional[str] = Form(None),
+    notes: Optional[str] = Form(None),
+    user=Depends(verify_token),
 ):
     try:
-        content = await file.read()
-        text = content.decode('utf-8', errors='ignore')
+        text = (await file.read()).decode("utf-8", errors="ignore")
         points = parse_raw_file(text)
 
-        print(f"MAGNETIC DEBUG: Parsed {len(points)} points from {file.filename}")
-
         if len(points) < 5:
-            raise HTTPException(400,
-                                "File contains no valid numeric data. Make sure it has at least two columns (field/temp vs moment).")
+            raise HTTPException(
+                400,
+                "File contains no valid numeric data. Expected field/temp vs moment columns.",
+            )
 
         x_vals = np.array([p[0] for p in points])
         y_vals = np.array([p[1] for p in points])
@@ -263,42 +345,85 @@ async def upload_magnetic(
         props = {
             "Ms": float(np.max(np.abs(y_vals))),
             "Mr": float(np.abs(np.interp(0, x_vals, y_vals))) if np.any(np.diff(np.sign(x_vals))) else 0.0,
-            "Hc": float(np.abs(np.interp(0, y_vals, x_vals))) if np.any(np.diff(np.sign(y_vals))) else 0.0
+            "Hc": float(np.abs(np.interp(0, y_vals, x_vals))) if np.any(np.diff(np.sign(y_vals))) else 0.0,
         }
 
         inserted_id = None
-        if DB_AVAILABLE:
-            result = await db.magnetic.insert_one({
-                "userId": user["userId"],
-                "sampleId": sampleId,
-                "filename": file.filename,
-                "measurementType": measurementType,
-                "data": [{"x": float(p[0]), "y": float(p[1])} for p in points],
-                "properties": props,
-                "notes": notes,
-                "createdAt": datetime.utcnow()
-            })
+        if database.DB_AVAILABLE:
+            result = await database.db.magnetic.insert_one(
+                {
+                    "userId": user["userId"],
+                    "sampleId": sampleId,
+                    "filename": file.filename,
+                    "measurementType": measurementType,
+                    "data": [{"x": float(p[0]), "y": float(p[1])} for p in points],
+                    "properties": props,
+                    "notes": notes,
+                    "createdAt": datetime.utcnow(),
+                }
+            )
             inserted_id = str(result.inserted_id)
+
+            if sampleId:
+                await _attach_magnetic_to_sample(
+                    sampleId,
+                    user["userId"],
+                    {
+                        "id": inserted_id,
+                        "filename": file.filename,
+                        "measurementType": measurementType,
+                        "properties": props,
+                        "uploadedAt": datetime.utcnow().isoformat(),
+                    },
+                )
+        else:
+            inserted_id = local_store.insert_magnetic(
+                user["userId"],
+                sampleId,
+                {
+                    "filename": file.filename,
+                    "measurementType": measurementType,
+                    "data": [{"x": float(p[0]), "y": float(p[1])} for p in points],
+                    "properties": props,
+                    "notes": notes,
+                    "createdAt": datetime.utcnow(),
+                },
+            )
+            if sampleId:
+                await _attach_magnetic_to_sample(
+                    sampleId,
+                    user["userId"],
+                    {
+                        "id": inserted_id,
+                        "filename": file.filename,
+                        "measurementType": measurementType,
+                        "properties": props,
+                        "uploadedAt": datetime.utcnow().isoformat(),
+                    },
+                )
 
         return {"success": True, "points": len(points), "properties": props, "id": inserted_id}
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Magnetic upload error: {str(e)}")
         raise HTTPException(500, f"Magnetic upload failed: {str(e)}")
 
 
 @app.get("/health")
 def health():
-    return {"status": "ElementX Python backend – FULLY WORKING", "backend": "Python + FastAPI + Deep Learning Ready"}
+    return {
+        "status": "ok",
+        "version": "2.0.0",
+        "mongodb": database.DB_AVAILABLE,
+        "localMode": not database.DB_AVAILABLE,
+        "aiLlm": llm_available(),
+    }
 
 
 @app.get("/")
 def root():
-    return {"message": "ElementX API is running", "version": "1.0"}
+    return {"message": "ElementX v2 API", "version": "2.0.0"}
 
-
-print("ElementX Python Backend – FINAL VERSION LOADED")
 
 if __name__ == "__main__":
     import uvicorn
