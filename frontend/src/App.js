@@ -680,13 +680,13 @@ function LabChatTab({ samples, selectedSampleId, setSelectedSampleId, cardStyle,
             <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>{m.role === 'user' ? 'You' : 'Reply'}</div>
             <div style={{ maxWidth: '85%', background: m.role === 'user' ? '#667eea' : 'white', color: m.role === 'user' ? 'white' : '#1f2937', border: m.role === 'user' ? 'none' : '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 14px' }}>
               <pre style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', fontSize: '14px', lineHeight: 1.5 }}>{m.text}</pre>
-              {m.payload?.analysis && <AnalysisCard analysis={m.payload.analysis} />}
-              {m.payload?.xrdRecord?.data?.length > 0 && (
+              {m.payload?.displayVisuals && m.payload?.analysis && <AnalysisCard analysis={m.payload.analysis} />}
+              {m.payload?.displayVisuals && m.payload?.xrdRecord?.data?.length > 0 && (
                 <div style={{ marginTop: '12px', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
                   <XRDPlot record={m.payload.xrdRecord} title="XRD pattern" />
                 </div>
               )}
-              {m.payload?.magneticRecord?.data?.length > 0 && (
+              {m.payload?.displayVisuals && m.payload?.magneticRecord?.data?.length > 0 && (
                 <div style={{ marginTop: '12px', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
                   <MagneticPlot record={m.payload.magneticRecord} title="M-H loop" />
                 </div>

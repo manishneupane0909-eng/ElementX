@@ -91,10 +91,50 @@ def _detect_intents(message: str) -> set[str]:
             "analyz", "analyse", "phase", "lattice", "crystallite", "size",
             "scherrer", "bragg", "bhmax", "energy product", "coerciv", "ms",
             "magnet", "hysteresis", "what did i get", "characteriz", "result",
+            "good", "bad", "compare", "explain",
         ]
     ):
         intents.add("analyze")
     return intents
+
+
+def _wants_visuals(message: str) -> bool:
+    """Charts + metric cards only for full analysis / explicit plot requests."""
+    m = message.lower()
+    if any(
+        p in m
+        for p in [
+            "plot",
+            "graph",
+            "chart",
+            "visualiz",
+            "show xrd",
+            "show loop",
+            "show pattern",
+            "show the xrd",
+            "show the m-h",
+            "display",
+        ]
+    ):
+        return True
+    if any(
+        p in m
+        for p in [
+            "analyze this sample",
+            "analyze the",
+            "full analysis",
+            "characteriz",
+            "what did i get",
+            "tell me what i got",
+            "everything about",
+            "phase, lattice",
+            "magnetic properties",
+            "i just uploaded",
+            "just uploaded",
+        ]
+    ):
+        return True
+    return False
 
 
 @router.get("/status")
@@ -115,6 +155,7 @@ async def agent_status(_user=Depends(verify_token)):
 async def agent_chat(payload: AgentChatRequest, user=Depends(verify_token)):
     user_id = user["userId"]
     intents = _detect_intents(payload.message)
+    display_visuals = _wants_visuals(payload.message)
 
     sample = None
     if payload.sample_id:
@@ -171,12 +212,24 @@ async def agent_chat(payload: AgentChatRequest, user=Depends(verify_token)):
     history_text = "\n".join(f"{m.role}: {m.content}" for m in payload.history[-6:])
 
     if llm_available():
-        system = (
-            "You help with permanent magnet lab work (MnAl, MnBi, etc.). "
-            "Use only the sample records and computed numbers below — do not invent peaks or magnetic values. "
-            "Cite the formula when you quote a number. Keep it short. "
-            "If something was not measured, say what to run next."
-        )
+        if display_visuals:
+            system = (
+                "You help with permanent magnet lab work (MnAl, MnBi, etc.). "
+                "Use only the sample records and computed numbers below — do not invent peaks or magnetic values. "
+                "Give a structured overview: phase, lattice, crystallite size, and magnetic properties when available. "
+                "Cite the formula when you quote a number. If something was not measured, say what to run next."
+            )
+        else:
+            system = (
+                "You help with permanent magnet lab work (MnAl, MnBi, etc.). "
+                "Answer ONLY what the user asked — do not dump the full characterization or repeat every metric. "
+                "Use the computed numbers below as ground truth; never invent peaks or magnetic values. "
+                "Keep replies short (1–3 sentences, or a short bullet list only if they asked for several things). "
+                "If they ask about one property (e.g. coercivity, phase), state that value or say it was not measured. "
+                "Add a brief explanation or one practical tip only when it directly helps their question "
+                "(e.g. how to improve Hc, whether a value is typical). "
+                "Do not use markdown headers or repeat data they already saw in earlier messages."
+            )
         user_msg = (
             f"Conversation so far:\n{history_text}\n\n"
             f"Grounding context:\n{context}\n\n"
@@ -184,7 +237,7 @@ async def agent_chat(payload: AgentChatRequest, user=Depends(verify_token)):
         )
         answer, source = await chat_completion(system, user_msg, max_tokens=1800)
     else:
-        answer = _offline_answer(payload.message, analysis, recommendations, rec_summary, sample)
+        answer = _offline_answer(payload.message, analysis, recommendations, rec_summary, sample, display_visuals)
         source = "heuristic"
 
     return {
@@ -192,21 +245,56 @@ async def agent_chat(payload: AgentChatRequest, user=Depends(verify_token)):
         "source": source,
         "model": active_model(),
         "toolsUsed": tools_used,
-        "analysis": analysis,
+        "displayVisuals": display_visuals,
+        "analysis": analysis if display_visuals else None,
         "recommendations": recommendations,
         "recommendationSummary": rec_summary,
         "brief": brief,
-        "xrdRecord": xrd_record,
-        "magneticRecord": mag_record,
+        "xrdRecord": xrd_record if display_visuals else None,
+        "magneticRecord": mag_record if display_visuals else None,
         "sampleId": payload.sample_id,
     }
 
 
-def _offline_answer(message, analysis, recommendations, rec_summary, sample) -> str:
+def _offline_answer(message, analysis, recommendations, rec_summary, sample, display_visuals: bool) -> str:
     lines = ["(No API key in backend/.env — showing calculated results only.)\n"]
     if sample:
         lines.append(f"Sample: {sample.get('name')} ({sample.get('formula')})")
-    if analysis:
+
+    m = message.lower()
+    if analysis and not display_visuals:
+        phase = analysis.get("phase") or {}
+        mag = analysis.get("magnetics") or {}
+        if any(w in m for w in ["phase", "tau", "mnal", "ε", "epsilon"]):
+            if phase:
+                lines.append(
+                    f"Phase τ-MnAl: {'DETECTED' if phase.get('tauDetected') else 'not detected'}"
+                    + (f" ({phase.get('matchedPeakCount')}/3 peaks)" if phase.get("tauDetected") else "")
+                )
+        elif any(w in m for w in ["coerciv", "hc"]):
+            if mag.get("ok"):
+                lines.append(f"Coercivity (Hc): {mag.get('Hc_Oe')} Oe")
+            else:
+                lines.append("Coercivity was not measured — run VSM and upload an M-H loop.")
+        elif any(w in m for w in ["ms", "saturation", "remanence", "mr", "squareness", "bhmax", "energy product"]):
+            if mag.get("ok"):
+                lines.append(
+                    f"Ms={mag.get('Ms_emu_g')} emu/g, Mr/Ms={mag.get('squareness_Mr_Ms')}, "
+                    f"(BH)max≈{mag.get('bhmax_estimate_MGOe')} MGOe"
+                )
+            else:
+                lines.append("Magnetic properties were not measured — upload VSM data.")
+        elif any(w in m for w in ["lattice", "bragg", "d-spacing"]):
+            lat = analysis.get("lattice") or {}
+            if lat.get("ok"):
+                lines.append(f"Lattice a (cubic est.): {lat.get('lattice_a_cubic')} Å — {lat.get('formula')}")
+        elif any(w in m for w in ["crystallite", "scherrer", "grain"]):
+            cs = analysis.get("crystallite") or {}
+            if cs.get("ok"):
+                lines.append(f"Crystallite size: {cs.get('crystallite_size_nm')} nm (Scherrer)")
+        else:
+            lines.append("Ask about a specific property (phase, Hc, Ms, lattice, etc.) or click Analyze sample for the full report.")
+    elif analysis and display_visuals:
         phase = analysis.get("phase") or {}
         if phase:
             lines.append(
