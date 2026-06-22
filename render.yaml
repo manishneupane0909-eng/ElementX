@@ -1,23 +1,29 @@
+# Render Blueprint — deploy backend + frontend together
+# Dashboard: New + → Blueprint → connect github.com/manishneupane0909-eng/ElementX
 services:
   - type: web
     name: elementx-backend
-    env: python
+    runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
     envVars:
-      - key: MONGODB_URI
-        sync: false
       - key: JWT_SECRET
         generateValue: true
-    healthCheckPath: /health
+      # Optional — app works without MongoDB (in-memory auth fallback)
+      - key: MONGODB_URI
+        sync: false
 
   - type: web
     name: elementx-frontend
-    env: static
+    runtime: static
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: ./build
     envVars:
       - key: REACT_APP_API_URL
-        sync: false
+        fromService:
+          name: elementx-backend
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL

@@ -4,6 +4,9 @@ Web app I built to keep track of rare-earth-free magnet samples — mostly MnAl 
 
 FastAPI + React. MongoDB if you have it; otherwise it runs fine in local memory mode.
 
+**Live demo:** _Deploy via [DEPLOY_TO_RENDER.md](./DEPLOY_TO_RENDER.md) — then paste URL here_  
+**Portfolio:** [mneupane.com](https://mneupane.com)
+
 ## Try the demo
 
 1. Start backend and frontend (see below)
