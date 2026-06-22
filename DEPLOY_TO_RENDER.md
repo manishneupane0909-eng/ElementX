@@ -29,10 +29,15 @@ Since your code is already on GitHub, follow these steps to make your app live!
 
 4. **Add Environment Variables**
    Click "Advanced" → "Add Environment Variable":
-   - `MONGODB_URI`: Your MongoDB connection string
+   - `MONGODB_URI`: Your MongoDB connection string (optional — app runs in local memory mode without it)
      - Example: `mongodb+srv://username:password@cluster.mongodb.net/elementx`
    - `JWT_SECRET`: A random secret key (you can generate one or Render will auto-generate)
      - Generate one: `openssl rand -hex 32` or use any long random string
+   - `GEMINI_API_KEY`: Free Google AI key for lab chat and AI briefs (optional but recommended)
+     - Get one at [Google AI Studio](https://aistudio.google.com/apikey) (free tier)
+     - On Render: open `elementx-backend` → **Environment** → add `GEMINI_API_KEY`
+     - Optional: `GEMINI_MODEL` = `gemini-2.5-flash` (default)
+     - Verify: `https://elementx-backend.onrender.com/health` should show `"aiLlm": true`
 
 5. **Deploy**
    - Click "Create Web Service"

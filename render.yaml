@@ -14,6 +14,11 @@ services:
       # Optional — app works without MongoDB (in-memory auth fallback)
       - key: MONGODB_URI
         sync: false
+      # Free tier: https://aistudio.google.com/apikey → enable Generative Language API
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
 
   - type: web
     name: elementx-frontend

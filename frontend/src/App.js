@@ -637,7 +637,7 @@ function LabChatTab({ samples, selectedSampleId, setSelectedSampleId, cardStyle,
         </h2>
         {status && (
           <span style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '999px', background: status.llmAvailable ? '#ecfdf5' : '#fffbeb', color: status.llmAvailable ? '#065f46' : '#92400e', border: `1px solid ${status.llmAvailable ? '#6ee7b7' : '#fcd34d'}` }}>
-            {status.llmAvailable ? 'Online' : 'Offline — add GEMINI_API_KEY in backend/.env'}
+            {status.llmAvailable ? 'Online' : 'Offline — set GEMINI_API_KEY (local: backend/.env, Render: service env)'}
           </span>
         )}
       </div>
@@ -1817,7 +1817,7 @@ function App() {
                 <strong>Text generation:</strong>{' '}
                 {aiStatus.llmAvailable
                   ? `On (${aiStatus.model})`
-                  : 'Off — add GEMINI_API_KEY in backend/.env. Ranker and regex parser still work.'}
+                  : 'Off — set GEMINI_API_KEY (local: backend/.env, Render: service env). Ranker and regex parser still work.'}
               </div>
             )}
 

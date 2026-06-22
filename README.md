@@ -4,10 +4,15 @@ Web app I built to keep track of rare-earth-free magnet samples — mostly MnAl 
 
 FastAPI + React. MongoDB if you have it; otherwise it runs fine in local memory mode.
 
-**Live demo:** _Deploy via [DEPLOY_TO_RENDER.md](./DEPLOY_TO_RENDER.md) — then paste URL here_  
+**Live demo:** [elementx-frontend.onrender.com](https://elementx-frontend.onrender.com)  
+**API:** [elementx-backend.onrender.com](https://elementx-backend.onrender.com)  
 **Portfolio:** [mneupane.com](https://mneupane.com)
 
 ## Try the demo
+
+**Online:** open the [live demo](https://elementx-frontend.onrender.com), click **Try live demo**, or log in with `demo@elementx.dev` / `demo2026`.
+
+**Local:**
 
 1. Start backend and frontend (see below)
 2. Open http://localhost:3000
