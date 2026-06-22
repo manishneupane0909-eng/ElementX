@@ -757,7 +757,60 @@ function App() {
   const [lastRecommendations, setLastRecommendations] = useState(null);
   const [demoBanner, setDemoBanner] = useState('');
   const [xrdRecord, setXrdRecord] = useState(null);
-  const [magRecord, setMagRecord] = useState(null);
+  const [magRecords, setMagRecords] = useState([]);
+
+  const applySampleCharacterization = (full) => {
+    if (!full) {
+      setXrdRecord(null);
+      setXrdData(null);
+      setMagRecords([]);
+      setMagData(null);
+      return;
+    }
+
+    const xr = (full.xrdRecords || []).find((r) => r.data?.length) || null;
+    if (xr) {
+      setXrdRecord(xr);
+      setXrdData({
+        filename: xr.filename,
+        points: xr.data.length,
+        peaks: xr.peaks,
+        peakCount: xr.peaks?.length ?? 0,
+        phaseAnalysis: full.phaseAnalysis,
+        recordId: xr.id,
+        processedDate: xr.createdAt ? new Date(xr.createdAt).toLocaleString() : new Date().toLocaleString(),
+        saved: true,
+      });
+    } else {
+      setXrdRecord(null);
+      setXrdData(null);
+    }
+
+    const mags = (full.magneticRecords || [])
+      .filter((r) => r.data?.length)
+      .sort((a, b) => {
+        const rank = (t) => (t === 'M-H' ? 0 : t === 'M-T' ? 1 : 2);
+        return rank(a.measurementType) - rank(b.measurementType);
+      });
+    setMagRecords(mags);
+    if (mags.length > 0) {
+      const latest = mags[0];
+      const props = latest.properties || {};
+      setMagData({
+        filename: latest.filename,
+        points: latest.data.length,
+        Ms: props.Ms != null ? Number(props.Ms).toFixed(3) : '—',
+        Mr: props.Mr != null ? Number(props.Mr).toFixed(3) : '—',
+        Hc: props.Hc != null ? Number(props.Hc).toFixed(3) : '—',
+        measurementType: latest.measurementType || 'M-H',
+        recordId: latest.id,
+        processedDate: latest.createdAt ? new Date(latest.createdAt).toLocaleString() : new Date().toLocaleString(),
+        saved: true,
+      });
+    } else {
+      setMagData(null);
+    }
+  };
 
   useEffect(() => {
     const currentUser = api.auth.getCurrentUser();
@@ -786,6 +839,30 @@ function App() {
       loadAiStatus();
     }
   }, [activeTab, user]);
+
+  useEffect(() => {
+    if (!user || !selectedSampleId) {
+      if (!selectedSampleId) {
+        setXrdRecord(null);
+        setXrdData(null);
+        setMagRecords([]);
+        setMagData(null);
+      }
+      return;
+    }
+    if (activeTab !== 'xrd' && activeTab !== 'mag') return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const full = await api.samples.getById(selectedSampleId);
+        if (!cancelled) applySampleCharacterization(full);
+      } catch (err) {
+        console.error('Failed to load sample charts:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedSampleId, activeTab, user]);
 
   const loadAiStatus = async () => {
     try {
@@ -1121,12 +1198,18 @@ function App() {
         processedDate: new Date().toLocaleString(),
         saved: true,
       });
+      if (response.data?.length) {
+        setXrdRecord({
+          id: response.id,
+          filename: response.filename || file.name,
+          data: response.data,
+          peaks: response.peaks,
+        });
+      }
       setUploadMessage(`Saved and linked to sample. Pattern plotted below.`);
       try {
         const full = await api.samples.getById(selectedSampleId);
-        if (full?.xrdRecords?.[0]?.data?.length) {
-          setXrdRecord(full.xrdRecords[0]);
-        }
+        applySampleCharacterization(full);
       } catch (_) {
         // plotting is best-effort; ignore fetch errors
       }
@@ -1165,17 +1248,28 @@ function App() {
         Ms: props.Ms?.toFixed(3) ?? '—',
         Mr: props.Mr?.toFixed(3) ?? '—',
         Hc: props.Hc?.toFixed(3) ?? '—',
-        measurementType,
+        measurementType: response.measurementType || measurementType,
         recordId: response.id,
         processedDate: new Date().toLocaleString(),
         saved: true,
       });
-      setUploadMessage(`Saved and linked to sample. M-H loop plotted below.`);
+      if (response.data?.length) {
+        const uploaded = {
+          id: response.id,
+          filename: response.filename || file.name,
+          measurementType: response.measurementType || measurementType,
+          data: response.data,
+          properties: props,
+        };
+        setMagRecords((prev) => {
+          const rest = prev.filter((r) => r.id !== uploaded.id);
+          return [uploaded, ...rest];
+        });
+      }
+      setUploadMessage(`Saved and linked to sample. Curve plotted below.`);
       try {
         const full = await api.samples.getById(selectedSampleId);
-        if (full?.magneticRecords?.[0]?.data?.length) {
-          setMagRecord(full.magneticRecords[0]);
-        }
+        applySampleCharacterization(full);
       } catch (_) {
         // plotting is best-effort; ignore fetch errors
       }
@@ -1694,9 +1788,13 @@ function App() {
                   </div>
                 )}
 
-                {xrdRecord?.data?.length > 0 && (
-                  <div style={{ marginTop: '14px' }}>
-                    <XRDPlot record={xrdRecord} title={`XRD pattern — ${xrdData.filename}`} />
+                {xrdRecord?.data?.length > 0 ? (
+                  <div style={{ marginTop: '14px', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                    <XRDPlot record={xrdRecord} title={`XRD pattern — ${xrdRecord.filename || xrdData.filename}`} />
+                  </div>
+                ) : (
+                  <div style={{ marginTop: '14px', color: '#64748b', fontSize: '13px' }}>
+                    No curve data to plot yet. Re-upload the file if the chart does not appear.
                   </div>
                 )}
 
@@ -1779,9 +1877,21 @@ function App() {
                   {magData.saved && <div style={{ color: '#16a34a', fontWeight: '600' }}>✓ Saved to database</div>}
                 </div>
 
-                {magRecord?.data?.length > 0 && (
-                  <div style={{ marginTop: '14px' }}>
-                    <MagneticPlot record={magRecord} title={`M-H loop — ${magData.filename}`} />
+                {magRecords.length > 0 ? (
+                  <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {magRecords.map((rec) => (
+                      <div key={rec.id || `${rec.measurementType}-${rec.filename}`} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                        <MagneticPlot
+                          record={rec}
+                          measurementType={rec.measurementType}
+                          title={`${rec.measurementType || 'M-H'} — ${rec.filename}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ marginTop: '14px', color: '#64748b', fontSize: '13px' }}>
+                    No curve data to plot yet. Upload M-H or M-T data above.
                   </div>
                 )}
               </div>

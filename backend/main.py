@@ -307,12 +307,15 @@ async def upload_xrd(
                 )
 
         phase_analysis = detect_tau_mnal(peak_list)
+        curve_data = [{"angle": float(p[0]), "intensity": float(p[1])} for p in points]
         return {
             "success": True,
             "points": len(points),
             "peaks": peak_list,
             "peakCount": len(peaks),
             "id": inserted_id,
+            "filename": file.filename,
+            "data": curve_data,
             "phaseAnalysis": phase_analysis,
         }
     except HTTPException:
@@ -402,7 +405,16 @@ async def upload_magnetic(
                     },
                 )
 
-        return {"success": True, "points": len(points), "properties": props, "id": inserted_id}
+        curve_data = [{"x": float(p[0]), "y": float(p[1])} for p in points]
+        return {
+            "success": True,
+            "points": len(points),
+            "properties": props,
+            "id": inserted_id,
+            "filename": file.filename,
+            "measurementType": measurementType,
+            "data": curve_data,
+        }
     except HTTPException:
         raise
     except Exception as e:

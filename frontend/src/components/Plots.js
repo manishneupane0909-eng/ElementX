@@ -107,7 +107,7 @@ export function XRDPlot({ record, color = '#1d4ff5', title }) {
   );
 }
 
-export function MagneticPlot({ record, color = '#1414ff', title }) {
+export function MagneticPlot({ record, color = '#1414ff', title, measurementType }) {
   if (!record || !record.data || record.data.length === 0) {
     return (
       <div style={{ color: '#94a3b8', fontSize: '13px', padding: '12px 0' }}>
@@ -116,12 +116,17 @@ export function MagneticPlot({ record, color = '#1414ff', title }) {
     );
   }
 
-  const maxAbsField = Math.max(...record.data.map((d) => Math.abs(d.x)));
-  const useKOe = maxAbsField > 1000;
-  const scale = useKOe ? 1000 : 1;
-  const fieldUnit = useKOe ? 'KOe' : 'Oe';
+  const type = measurementType || record.measurementType || 'M-H';
+  const isMT = type.toUpperCase().includes('M-T') || type.toLowerCase().includes('temp');
 
-  const data = record.data.map((d) => ({ x: d.x / scale, y: d.y }));
+  const maxAbsField = Math.max(...record.data.map((d) => Math.abs(d.x)));
+  const useKOe = !isMT && maxAbsField > 1000;
+  const scale = useKOe ? 1000 : 1;
+  const xAxisLabel = isMT ? 'Temperature (K)' : `Magnetic Field (${useKOe ? 'KOe' : 'Oe'})`;
+  const fieldUnit = useKOe ? 'KOe' : isMT ? 'K' : 'Oe';
+  const seriesName = isMT ? 'M-T curve' : 'M-H loop';
+
+  const data = record.data.map((d) => ({ x: isMT ? d.x : d.x / scale, y: d.y }));
 
   return (
     <div style={{ width: '100%', background: 'white', borderRadius: '10px', padding: '12px 8px 4px' }}>
@@ -141,7 +146,7 @@ export function MagneticPlot({ record, color = '#1414ff', title }) {
             tick={TICK_FONT}
             tickCount={7}
           >
-            <Label value={`Magnetic Field (${fieldUnit})`} position="bottom" offset={12} style={AXIS_FONT} />
+            <Label value={xAxisLabel} position="bottom" offset={12} style={AXIS_FONT} />
           </XAxis>
           <YAxis
             axisLine={originAxisLine}
@@ -158,12 +163,12 @@ export function MagneticPlot({ record, color = '#1414ff', title }) {
           </YAxis>
           <Tooltip
             formatter={(v) => [Number(v).toFixed(2), 'Moment (emu/g)']}
-            labelFormatter={(l) => `H = ${Number(l).toFixed(2)} ${fieldUnit}`}
+            labelFormatter={(l) => (isMT ? `T = ${Number(l).toFixed(2)} K` : `H = ${Number(l).toFixed(2)} ${fieldUnit}`)}
           />
           <Line
             type="linear"
             dataKey="y"
-            name={record.filename || 'M-H loop'}
+            name={record.filename || seriesName}
             stroke={color}
             strokeWidth={3}
             dot={false}
