@@ -311,6 +311,8 @@ function LoginForm({ onLogin, onDemo }) {
 }
 
 function SamplePicker({ samples, value, onChange, disabled }) {
+  const getId = (s) => s.id || s._id;
+
   return (
     <div style={{ flex: 1, minWidth: '220px' }}>
       <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#4a5568', marginBottom: '8px' }}>
@@ -319,7 +321,7 @@ function SamplePicker({ samples, value, onChange, disabled }) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
+        disabled={disabled || samples.length === 0}
         style={{
           width: '100%',
           padding: '12px 16px',
@@ -329,13 +331,48 @@ function SamplePicker({ samples, value, onChange, disabled }) {
           background: 'white',
         }}
       >
-        <option value="">— Select a sample —</option>
+        <option value="">
+          {samples.length === 0 ? '— No samples yet —' : '— Select a sample —'}
+        </option>
         {samples.map((s) => (
-          <option key={s.id} value={s.id}>
+          <option key={getId(s)} value={getId(s)}>
             {s.name || s.formula} ({s.status || 'planned'})
           </option>
         ))}
       </select>
+      {samples.length > 0 && !value && (
+        <div style={{ fontSize: '12px', color: '#b45309', marginTop: '6px' }}>
+          Select a sample before uploading.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EmptySamplesPrompt({ onLoadDemo, onGoCalc, loading }) {
+  return (
+    <div style={{ padding: '24px', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1', marginBottom: '16px' }}>
+      <p style={{ color: '#64748b', margin: '0 0 12px' }}>
+        You need at least one sample before uploading XRD or magnetic data.
+      </p>
+      <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          disabled={loading}
+          onClick={onGoCalc}
+          style={{ padding: '10px 16px', background: '#667eea', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
+        >
+          Create sample (Stoichiometry)
+        </button>
+        <button
+          type="button"
+          disabled={loading}
+          onClick={onLoadDemo}
+          style={{ padding: '10px 16px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
+        >
+          Load demo lab (3 samples)
+        </button>
+      </div>
     </div>
   );
 }
@@ -756,6 +793,7 @@ function App() {
   const [detailBrief, setDetailBrief] = useState('');
   const [lastRecommendations, setLastRecommendations] = useState(null);
   const [demoBanner, setDemoBanner] = useState('');
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [xrdRecord, setXrdRecord] = useState(null);
   const [magRecords, setMagRecords] = useState([]);
 
@@ -874,19 +912,45 @@ function App() {
   };
 
   const loadHistory = async () => {
-    setLoading(true);
+    setHistoryLoading(true);
     try {
       const data = await api.samples.getAll();
       setHistory(data);
+      setSelectedSampleId((prev) => {
+        if (!data.length) return '';
+        const ids = data.map((s) => s.id || s._id);
+        if (prev && ids.includes(prev)) return prev;
+        return ids[0];
+      });
       if (detailSample?.id) {
         const fresh = await api.samples.getById(detailSample.id);
         setDetailSample(fresh);
       }
     } catch (err) {
       console.error('Failed to load history:', err);
+      setError('Could not load samples. Try logging in again or load the demo lab.');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const loadDemoLab = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const boot = await api.demo.load(false);
+      setDemoBanner(boot.message || 'Demo lab loaded.');
+      await loadHistory();
+    } catch (err) {
+      setError(err.message || 'Failed to load demo lab');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSampleSelect = (id) => {
+    setSelectedSampleId(id);
+    if (id) setError('');
   };
 
   const openSampleDetail = async (id) => {
@@ -1002,9 +1066,9 @@ function App() {
     }
   };
 
-  const handleLogin = (userData, options = {}) => {
+  const handleLogin = async (userData, options = {}) => {
     setUser(userData);
-    loadHistory();
+    await loadHistory();
     if (options.tab) setActiveTab(options.tab);
     if (options.message) setDemoBanner(options.message);
   };
@@ -1015,7 +1079,7 @@ function App() {
       email: boot.email,
       password: boot.password,
     });
-    handleLogin(loginResult.user, {
+    await handleLogin(loginResult.user, {
       tab: 'copilot',
       message: boot.message || 'Demo lab loaded — pick a sample in Lab chat.',
     });
@@ -1102,7 +1166,7 @@ function App() {
         stoichiometry: result,
       });
       await loadHistory();
-      setSelectedSampleId(created.id);
+      setSelectedSampleId(created.id || created._id);
       setSampleName('');
       alert(`Sample "${created.name}" saved. You can now upload XRD and magnetic data for it.`);
     } catch (err) {
@@ -1451,18 +1515,7 @@ function App() {
             setSelectedSampleId={setSelectedSampleId}
             cardStyle={cardStyle}
             inputStyle={inputStyle}
-            onLoadDemo={async () => {
-              setLoading(true);
-              try {
-                const boot = await api.demo.load(false);
-                setDemoBanner(boot.message);
-                await loadHistory();
-              } catch (err) {
-                setError(err.message);
-              } finally {
-                setLoading(false);
-              }
-            }}
+            onLoadDemo={loadDemoLab}
           />
         )}
 
@@ -1629,8 +1682,8 @@ function App() {
               </div>
             )}
 
-            {loading ? (
-              <div style={{ padding: '10px 0' }}>Loading…</div>
+            {historyLoading ? (
+              <div style={{ padding: '10px 0' }}>Loading samples…</div>
             ) : history.length === 0 ? (
               <div style={{ padding: '24px', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
                 <p style={{ color: '#64748b', marginTop: 0 }}>No samples yet.</p>
@@ -1638,17 +1691,8 @@ function App() {
                   type="button"
                   disabled={loading}
                   onClick={async () => {
-                    setLoading(true);
-                    try {
-                      const boot = await api.demo.load(false);
-                      setDemoBanner(boot.message);
-                      await loadHistory();
-                      setActiveTab('ai');
-                    } catch (err) {
-                      setError(err.message);
-                    } finally {
-                      setLoading(false);
-                    }
+                    await loadDemoLab();
+                    setActiveTab('ai');
                   }}
                   style={{ padding: '12px 20px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
                 >
@@ -1692,13 +1736,13 @@ function App() {
                         Load
                       </button>
                       <button
-                        onClick={() => { setSelectedSampleId(s.id); setActiveTab('xrd'); }}
+                        onClick={() => { handleSampleSelect(s.id || s._id); setActiveTab('xrd'); }}
                         style={{ padding: '8px 10px', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
                       >
                         XRD
                       </button>
                       <button
-                        onClick={() => { setSelectedSampleId(s.id); setActiveTab('mag'); }}
+                        onClick={() => { handleSampleSelect(s.id || s._id); setActiveTab('mag'); }}
                         style={{ padding: '8px 10px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
                       >
                         Mag
@@ -1749,17 +1793,43 @@ function App() {
               </div>
             )}
 
+            {history.length === 0 ? (
+              <EmptySamplesPrompt
+                loading={loading || historyLoading}
+                onLoadDemo={loadDemoLab}
+                onGoCalc={() => setActiveTab('calc')}
+              />
+            ) : (
+              <>
             <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end', marginBottom: '16px', flexWrap: 'wrap' }}>
               <SamplePicker
                 samples={history}
                 value={selectedSampleId}
-                onChange={setSelectedSampleId}
-                disabled={loading}
+                onChange={handleSampleSelect}
+                disabled={historyLoading}
               />
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: '10px', cursor: loading ? 'wait' : 'pointer', background: 'white' }}>
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '12px 16px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '10px',
+                  cursor: (loading || !selectedSampleId) ? 'not-allowed' : 'pointer',
+                  background: 'white',
+                  opacity: (loading || !selectedSampleId) ? 0.55 : 1,
+                }}
+              >
                 <Upload size={16} />
                 <span>{loading ? 'Uploading…' : 'Choose file'}</span>
-                <input type="file" accept=".txt,.csv,.ras,.dat,.DAT" onChange={handleXRDUpload} disabled={loading} style={{ display: 'none' }} />
+                <input
+                  type="file"
+                  accept=".txt,.csv,.ras,.dat,.DAT"
+                  onChange={handleXRDUpload}
+                  disabled={loading || !selectedSampleId}
+                  style={{ display: 'none' }}
+                />
               </label>
             </div>
 
@@ -1807,10 +1877,10 @@ function App() {
               </div>
             ) : (
               <div style={{ color: '#64748b' }}>
-                {history.length === 0
-                  ? 'Create a sample in the Sample Database tab first, then select it here.'
-                  : 'Select a sample and upload an XRD file (.ras, .txt, .csv, .dat).'}
+                Select a sample and upload an XRD file (.ras, .txt, .csv, .dat).
               </div>
+            )}
+              </>
             )}
           </div>
         )}
@@ -1836,12 +1906,20 @@ function App() {
               </div>
             )}
 
+            {history.length === 0 ? (
+              <EmptySamplesPrompt
+                loading={loading || historyLoading}
+                onLoadDemo={loadDemoLab}
+                onGoCalc={() => setActiveTab('calc')}
+              />
+            ) : (
+              <>
             <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end', marginBottom: '16px', flexWrap: 'wrap' }}>
               <SamplePicker
                 samples={history}
                 value={selectedSampleId}
-                onChange={setSelectedSampleId}
-                disabled={loading}
+                onChange={handleSampleSelect}
+                disabled={historyLoading}
               />
               <div style={{ minWidth: '160px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#4a5568', marginBottom: '8px' }}>
@@ -1857,10 +1935,28 @@ function App() {
                   <option value="M-T">M-T (temperature scan)</option>
                 </select>
               </div>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: '10px', cursor: loading ? 'wait' : 'pointer', background: 'white' }}>
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '12px 16px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '10px',
+                  cursor: (loading || !selectedSampleId) ? 'not-allowed' : 'pointer',
+                  background: 'white',
+                  opacity: (loading || !selectedSampleId) ? 0.55 : 1,
+                }}
+              >
                 <Upload size={16} />
                 <span>{loading ? 'Uploading…' : 'Choose file'}</span>
-                <input type="file" accept=".txt,.csv,.dat,.DAT" onChange={handleMagUpload} disabled={loading} style={{ display: 'none' }} />
+                <input
+                  type="file"
+                  accept=".txt,.csv,.dat,.DAT"
+                  onChange={handleMagUpload}
+                  disabled={loading || !selectedSampleId}
+                  style={{ display: 'none' }}
+                />
               </label>
             </div>
 
@@ -1897,10 +1993,10 @@ function App() {
               </div>
             ) : (
               <div style={{ color: '#64748b' }}>
-                {history.length === 0
-                  ? 'Create a sample in the Sample Database tab first, then select it here.'
-                  : 'Select a sample, choose M-H or M-T, and upload your .DAT file.'}
+                Select a sample, choose M-H or M-T, and upload your .DAT file.
               </div>
+            )}
+              </>
             )}
           </div>
         )}
@@ -1947,8 +2043,8 @@ function App() {
               <SamplePicker
                 samples={history}
                 value={selectedSampleId}
-                onChange={setSelectedSampleId}
-                disabled={loading || aiLoading}
+                onChange={handleSampleSelect}
+                disabled={loading || aiLoading || historyLoading}
               />
               <button
                 disabled={!selectedSampleId || aiLoading}
