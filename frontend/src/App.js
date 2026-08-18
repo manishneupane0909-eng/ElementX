@@ -851,11 +851,9 @@ function App() {
   };
 
   useEffect(() => {
-    const currentUser = api.auth.getCurrentUser();
-    if (currentUser) {
-      setUser(currentUser);
-      loadHistory();
-    }
+    api.auth.logout();
+    setUser(null);
+    setHistory([]);
   }, []);
 
   useEffect(() => {
