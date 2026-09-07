@@ -2,6 +2,8 @@ fastapi>=0.121.0
 uvicorn[standard]>=0.38.0
 motor>=3.7.0
 pymongo>=4.15.0
+PyJWT>=2.8.0
+bcrypt>=4.0.0
 python-jose[cryptography]>=3.5.0
 passlib[bcrypt]>=1.7.4
 python-multipart>=0.0.20
@@ -9,5 +11,7 @@ pydantic[email]>=2.12.0
 numpy>=2.0.0
 scipy>=1.13.0
 python-dotenv>=1.0.0
-
+httpx>=0.27.0
+pymatgen>=2024.8.0,<2025.0.0
+mp-api>=0.45.0,<0.46.0
 

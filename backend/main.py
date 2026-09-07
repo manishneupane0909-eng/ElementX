@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 import bcrypt
@@ -13,13 +13,46 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 import re
 from dotenv import load_dotenv
+from pathlib import Path
 from uuid import uuid4
 
-app = FastAPI(title="ElementX Python Backend")
+# Load repo-root .env when uvicorn is started from backend/
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(_REPO_ROOT / ".env")
+load_dotenv()
+
+from services.materials_client import (
+    MaterialsClient,
+    MaterialsAPIKeyError,
+    MaterialsClientError,
+    MaterialsNotFoundError,
+    FormulaQueryResult,
+)
+from services.cif_parser import parse_cif_bytes, CifParserError, CifParseResult
+from services.physics_engine import evaluate_permanent_magnet
+from services.parsers.quantum_design import (
+    QuantumDesignParseError,
+    is_quantum_design_dat,
+)
+from services.magnetometry import MagnetometrySegmentationError
+from services.hysteresis import HysteresisAnalysisError
+from services.saturation import SaturationAnalysisError
+from services.sample_provenance import SampleProvenanceError
+from services.mh_analysis import MHAnalysisError
+from services.magnetometry_analysis import analyze_quantum_design_magnetometry
+
+app = FastAPI(title="ElementX Material Science Magnet Analytics API")
+
+VITE_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=VITE_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -68,6 +101,79 @@ class UserIn(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class FormulaQueryRequest(BaseModel):
+    formula: str = Field(..., min_length=1, examples=["Nd2Fe14B"])
+
+
+class AnalyzeMagnetRequest(BaseModel):
+    formula: str = Field(..., min_length=1, examples=["Nd2Fe14B"])
+    magnetic_moment: Optional[float] = Field(
+        None,
+        description="Total magnetic moment in μB/f.u. Omit to fetch from Materials Project.",
+    )
+    volume: Optional[float] = Field(
+        None,
+        gt=0,
+        description="Unit-cell volume in Å³. Omit to fetch from Materials Project.",
+    )
+    formula_units_per_cell: int = Field(
+        1,
+        ge=1,
+        description="Number of formula units Z in the unit cell (e.g. 8 for Nd2Fe14B).",
+    )
+    fetch_from_materials_project: bool = Field(
+        True,
+        description="When true, missing magnetic_moment or volume are fetched from MP.",
+    )
+
+
+class CriticalityBreakdownItem(BaseModel):
+    element: str
+    stoichiometry: float
+    mole_fraction: float
+    element_criticality: float
+    contribution: float
+
+
+class HighRiskComponent(BaseModel):
+    element: str
+    mole_fraction: float
+    element_criticality: float
+    contribution: float
+
+
+class CriticalityResult(BaseModel):
+    formula: str
+    total_score: float
+    risk_level: str
+    high_risk_components: List[HighRiskComponent]
+    element_breakdown: List[CriticalityBreakdownItem]
+
+
+class TheoreticalLimitsResult(BaseModel):
+    magnetic_moment_mu_b_per_fu: float
+    unit_cell_volume_angstrom3: float
+    formula_units_per_cell: int
+    magnetization_a_per_m: float
+    saturation_magnetization_tesla: float
+    bhmax_j_m3: float
+    bhmax_kj_m3: float
+    bhmax_mgoe: float
+    assumptions: dict
+
+
+class AnalyzeMagnetResult(BaseModel):
+    formula: str
+    material_id: Optional[str] = None
+    magnetic_ordering: Optional[str] = None
+    criticality: CriticalityResult
+    theoretical_limits: Optional[TheoreticalLimitsResult] = None
+    data_sources: dict
+
+
+materials_client = MaterialsClient()
 
 
 async def verify_token(cred: HTTPAuthorizationCredentials = Depends(security)):
@@ -288,14 +394,193 @@ async def upload_magnetic(
         raise HTTPException(500, f"Magnetic upload failed: {str(e)}")
 
 
+@app.post("/api/query-formula", response_model=FormulaQueryResult)
+def query_formula(body: FormulaQueryRequest):
+    """Query Materials Project for structural symmetry and magnetic properties by formula."""
+    try:
+        return materials_client.query_formula(body.formula)
+    except MaterialsNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except MaterialsAPIKeyError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except MaterialsClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Formula query failed: {exc}") from exc
+
+
+@app.post("/api/analyze-magnet", response_model=AnalyzeMagnetResult)
+def analyze_magnet(body: AnalyzeMagnetRequest):
+    """
+    Evaluate supply-chain criticality and theoretical magnet performance limits.
+
+    Fetches magnetic moment and unit-cell volume from Materials Project when
+    not supplied, then runs the physics engine criticality and (BH)max models.
+    """
+    magnetic_moment = body.magnetic_moment
+    volume = body.volume
+    material_id: Optional[str] = None
+    magnetic_ordering: Optional[str] = None
+    data_sources: dict = {"materials_project": False}
+
+    needs_mp = body.fetch_from_materials_project and (
+        magnetic_moment is None or volume is None
+    )
+
+    if needs_mp:
+        try:
+            mp_result = materials_client.query_formula(body.formula)
+        except MaterialsNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except MaterialsAPIKeyError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except MaterialsClientError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        material_id = mp_result.material_id
+        magnetic_ordering = mp_result.magnetic_ordering
+        data_sources["materials_project"] = True
+        data_sources["material_id"] = material_id
+
+        if magnetic_moment is None:
+            magnetic_moment = mp_result.total_magnetic_moment
+            data_sources["magnetic_moment_source"] = "materials_project"
+        else:
+            data_sources["magnetic_moment_source"] = "request"
+
+        if volume is None:
+            volume = mp_result.unit_cell_volume
+            data_sources["volume_source"] = "materials_project"
+        else:
+            data_sources["volume_source"] = "request"
+    else:
+        data_sources["magnetic_moment_source"] = "request" if magnetic_moment is not None else None
+        data_sources["volume_source"] = "request" if volume is not None else None
+
+    try:
+        evaluation = evaluate_permanent_magnet(
+            formula=body.formula,
+            magnetic_moment=magnetic_moment,
+            volume=volume,
+            formula_units_per_cell=body.formula_units_per_cell,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if evaluation["theoretical_limits"] is None:
+        missing = []
+        if magnetic_moment is None:
+            missing.append("magnetic_moment")
+        if volume is None:
+            missing.append("volume")
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Cannot compute theoretical limits; missing: {', '.join(missing)}. "
+                "Provide values in the request or enable Materials Project fetch with a valid MP_API_KEY."
+            ),
+        )
+
+    return AnalyzeMagnetResult(
+        formula=evaluation["formula"],
+        material_id=material_id,
+        magnetic_ordering=magnetic_ordering,
+        criticality=evaluation["criticality"],
+        theoretical_limits=evaluation["theoretical_limits"],
+        data_sources=data_sources,
+    )
+
+
+@app.post("/api/parse-cif", response_model=CifParseResult)
+async def parse_cif(file: UploadFile = File(...)):
+    """Parse an uploaded CIF file and return lattice, symmetry, and density."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="A CIF filename is required.")
+
+    if not file.filename.lower().endswith(".cif"):
+        raise HTTPException(status_code=400, detail="Only .cif files are supported.")
+
+    try:
+        content = await file.read()
+        return parse_cif_bytes(content, filename=file.filename)
+    except CifParserError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"CIF parsing failed: {exc}") from exc
+
+
+@app.post("/api/magnetometry/analyze")
+async def analyze_magnetometry_dat(
+    file: UploadFile = File(...),
+    user_confirmed_mass_mg: Optional[float] = Form(None),
+):
+    """Analyze a Quantum Design / VersaLab .DAT magnetometry file."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="A .dat filename is required.")
+
+    if not file.filename.lower().endswith(".dat"):
+        raise HTTPException(status_code=400, detail="Only .dat files are supported.")
+
+    try:
+        content = await file.read()
+        text = content.decode("utf-8", errors="ignore")
+
+        if not is_quantum_design_dat(text):
+            raise HTTPException(
+                status_code=400,
+                detail="This is not a recognized Quantum Design .DAT file.",
+            )
+
+        return analyze_quantum_design_magnetometry(
+            text,
+            filename=file.filename,
+            user_confirmed_mass_mg=user_confirmed_mass_mg,
+        )
+    except HTTPException:
+        raise
+    except QuantumDesignParseError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except MagnetometrySegmentationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except HysteresisAnalysisError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except SaturationAnalysisError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except SampleProvenanceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except MHAnalysisError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Magnetometry analysis failed: {exc}",
+        ) from exc
+
+
 @app.get("/health")
 def health():
-    return {"status": "ElementX Python backend – FULLY WORKING", "backend": "Python + FastAPI + Deep Learning Ready"}
+    return {
+        "status": "ElementX Material Science Magnet Analytics backend",
+        "backend": "Python + FastAPI",
+        "materials_project_configured": bool(
+            os.getenv("MP_API_KEY") or os.getenv("MATERIALS_PROJECT_API_KEY")
+        ),
+    }
 
 
 @app.get("/")
 def root():
-    return {"message": "ElementX API is running", "version": "1.0"}
+    return {
+        "message": "ElementX API is running",
+        "version": "2.0",
+        "endpoints": {
+            "query_formula": "POST /api/query-formula",
+            "parse_cif": "POST /api/parse-cif",
+            "analyze_magnet": "POST /api/analyze-magnet",
+        },
+    }
 
 
 print("ElementX Python Backend – FINAL VERSION LOADED")
