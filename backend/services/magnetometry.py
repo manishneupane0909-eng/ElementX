@@ -556,6 +556,7 @@ def _build_segment(
             "duration_sec": None,
             "confidence": 0.0,
             "warnings": ["Segment contains no rows with finite temperature and field."],
+            "data": _empty_measured_series(),
         }
 
     temperatures = [temperature[row] for row in valid_rows]
@@ -594,6 +595,57 @@ def _build_segment(
         "duration_sec": _duration(timestamps, valid_rows),
         "confidence": confidence,
         "warnings": segment_warnings,
+        "data": _measured_series(valid_rows, temperature, field, moment),
+    }
+
+
+def _empty_measured_series() -> dict[str, list[Any]]:
+    return {
+        "temperature_K": [],
+        "field_Oe": [],
+        "moment_emu": [],
+        "source_index": [],
+    }
+
+
+def _measured_series(
+    valid_rows: list[int],
+    temperature: list[float],
+    field: list[float],
+    moment: list[float],
+) -> dict[str, list[Any]]:
+    """
+    Return aligned measured points for one segment in original acquisition order.
+
+    Rows already classified as valid by segmentation (finite temperature and
+    field) are included. A non-finite moment is omitted so the JSON series
+    stays finite; no interpolation, sorting, or synthetic points are added.
+    """
+    temperature_K: list[float] = []
+    field_Oe: list[float] = []
+    moment_emu: list[float] = []
+    source_index: list[int] = []
+
+    for row in valid_rows:
+        t_value = temperature[row]
+        h_value = field[row]
+        m_value = moment[row]
+        if not (
+            math.isfinite(t_value)
+            and math.isfinite(h_value)
+            and math.isfinite(m_value)
+        ):
+            continue
+        temperature_K.append(t_value)
+        field_Oe.append(h_value)
+        moment_emu.append(m_value)
+        source_index.append(row)
+
+    return {
+        "temperature_K": temperature_K,
+        "field_Oe": field_Oe,
+        "moment_emu": moment_emu,
+        "source_index": source_index,
     }
 
 
