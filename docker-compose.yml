@@ -8,6 +8,7 @@ services:
     environment:
       - MONGODB_URI=${MONGODB_URI:-mongodb://localhost:27017/elementx}
       - JWT_SECRET=${JWT_SECRET:-superlongrandomkey1234567890}
+      - MP_API_KEY=${MP_API_KEY:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
