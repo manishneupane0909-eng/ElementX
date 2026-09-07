@@ -7,10 +7,12 @@ import {
   type MagnetometryAnalyzeResult,
   type MassProvenance,
   type MeasurementSegment,
+  type MeasurementSegmentData,
   type MHAnalysisEntry,
   type NormalizedMoment,
   type NormalizedResults,
 } from '../services/magnetApi'
+import ScientificPlot, { type PlotPoint, type PlotReferenceLine } from './ScientificPlot'
 
 const MASS_CONFIRMATION_STATUSES = new Set([
   'conflict',
@@ -50,6 +52,53 @@ function errorMessage(err: unknown, fallback: string): string {
     return err.message
   }
   return fallback
+}
+
+function seriesPoints(
+  xValues: number[] | undefined,
+  yValues: number[] | undefined,
+): PlotPoint[] {
+  if (!xValues || !yValues || xValues.length === 0 || xValues.length !== yValues.length) {
+    return []
+  }
+  return xValues.map((x, index) => ({ x, y: yValues[index] }))
+}
+
+function mhReferenceLines(hysteresis: HysteresisAnalysis): PlotReferenceLine[] {
+  const lines: PlotReferenceLine[] = []
+  if (hysteresis.Hc_negative_Oe !== null) {
+    lines.push({ x: hysteresis.Hc_negative_Oe, label: 'Hc−' })
+  }
+  if (hysteresis.Hc_positive_Oe !== null) {
+    lines.push({ x: hysteresis.Hc_positive_Oe, label: 'Hc+' })
+  }
+  return lines
+}
+
+function MeasuredCurve({
+  data,
+  xKey,
+  xLabel,
+  xUnit,
+  referenceX,
+}: {
+  data: MeasurementSegmentData | undefined
+  xKey: 'field_Oe' | 'temperature_K'
+  xLabel: string
+  xUnit: string
+  referenceX?: PlotReferenceLine[]
+}) {
+  const points = seriesPoints(data?.[xKey], data?.moment_emu)
+  return (
+    <ScientificPlot
+      points={points}
+      xLabel={xLabel}
+      yLabel="Magnetic Moment"
+      xUnit={xUnit}
+      yUnit="emu"
+      referenceX={referenceX}
+    />
+  )
 }
 
 function ResultRow({ label, value }: { label: string; value: string }) {
@@ -197,7 +246,16 @@ function MtSegmentCard({ segment, index }: { segment: MeasurementSegment; index:
       <h3>M-T Segment {index}</h3>
       <p className="magnetometry-section__note">
         Identification only. No Curie temperature is calculated from this segment.
+        {segment.mean_field_Oe !== null
+          ? ` Mean applied field: ${formatNumber(segment.mean_field_Oe, 1)} Oe.`
+          : ''}
       </p>
+      <MeasuredCurve
+        data={segment.data}
+        xKey="temperature_K"
+        xLabel="Temperature"
+        xUnit="K"
+      />
       <dl className="result-list">
         <ResultRow label="Segment index" value={String(index)} />
         <ResultRow label="Point count" value={String(segment.point_count)} />
@@ -360,7 +418,13 @@ function NormalizedBlock({ normalized }: { normalized: NormalizedResults }) {
   )
 }
 
-function MhLoopCard({ entry }: { entry: MHAnalysisEntry }) {
+function MhLoopCard({
+  entry,
+  segment,
+}: {
+  entry: MHAnalysisEntry
+  segment: MeasurementSegment | undefined
+}) {
   const temperature = entry.analysis.segment.mean_temperature_K
   const loopWarnings = [
     ...entry.analysis.warnings,
@@ -376,6 +440,14 @@ function MhLoopCard({ entry }: { entry: MHAnalysisEntry }) {
         </h3>
         <span className="mh-loop-card__index">segment {entry.segment_index}</span>
       </header>
+
+      <MeasuredCurve
+        data={segment?.data}
+        xKey="field_Oe"
+        xLabel="Magnetic Field"
+        xUnit="Oe"
+        referenceX={mhReferenceLines(entry.analysis.hysteresis)}
+      />
 
       {loopWarnings.length > 0 && (
         <div className="status-banner status-banner--info">
@@ -588,7 +660,11 @@ export default function MagnetometryUpload() {
             ) : (
               <div className="magnetometry-stack">
                 {result.mh_analyses.map((entry) => (
-                  <MhLoopCard key={entry.segment_index} entry={entry} />
+                  <MhLoopCard
+                    key={entry.segment_index}
+                    entry={entry}
+                    segment={result.segmentation.segments[entry.segment_index]}
+                  />
                 ))}
               </div>
             )}

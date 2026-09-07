@@ -231,6 +231,13 @@ export interface MagnetometrySummary {
   normalization_available: boolean;
 }
 
+export interface MeasurementSegmentData {
+  temperature_K: number[];
+  field_Oe: number[];
+  moment_emu: number[];
+  source_index: number[];
+}
+
 export interface MeasurementSegment {
   type: string;
   start_index: number;
@@ -244,6 +251,7 @@ export interface MeasurementSegment {
   duration_sec: number | null;
   confidence: number;
   warnings: string[];
+  data: MeasurementSegmentData;
 }
 
 export interface MagnetometrySegmentation {
