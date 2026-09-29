@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import MagnetometryUpload from './MagnetometryUpload'
+import XrdUpload from './XrdUpload'
 import {
   createSample,
   getExperiment,
@@ -8,9 +9,9 @@ import {
   listSamples,
   MagnetApiError,
   type ExperimentSummary,
-  type MagnetometryAnalyzeResult,
   type SampleDetail,
   type SampleSummary,
+  type SavedExperiment,
 } from '../services/magnetApi'
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -34,8 +35,8 @@ function formatUploadedAt(value: string): string {
 export default function SampleList() {
   const [samples, setSamples] = useState<SampleSummary[]>([])
   const [selected, setSelected] = useState<SampleDetail | null>(null)
-  const [openedAnalysis, setOpenedAnalysis] = useState<MagnetometryAnalyzeResult | null>(null)
-  const [openedExperiment, setOpenedExperiment] = useState<ExperimentSummary | null>(null)
+  const [openedSaved, setOpenedSaved] = useState<SavedExperiment | null>(null)
+  const [openedSummary, setOpenedSummary] = useState<ExperimentSummary | null>(null)
   const [name, setName] = useState('')
   const [formula, setFormula] = useState('')
   const [notes, setNotes] = useState('')
@@ -110,8 +111,8 @@ export default function SampleList() {
     try {
       const detail = await getSample(sampleId)
       setSelected(detail)
-      setOpenedExperiment(null)
-      setOpenedAnalysis(null)
+      setOpenedSaved(null)
+      setOpenedSummary(null)
     } catch (err) {
       setError(errorMessage(err, 'Failed to load sample.'))
     } finally {
@@ -124,8 +125,8 @@ export default function SampleList() {
     setError(null)
     try {
       const saved = await getExperiment(summary.id)
-      setOpenedExperiment(summary)
-      setOpenedAnalysis(saved.analysis_json)
+      setOpenedSummary(summary)
+      setOpenedSaved(saved)
     } catch (err) {
       setError(errorMessage(err, 'Failed to load experiment.'))
     } finally {
@@ -133,7 +134,7 @@ export default function SampleList() {
     }
   }
 
-  if (selected && openedAnalysis && openedExperiment) {
+  if (selected && openedSaved && openedSummary) {
     return (
       <div className="samples-view">
         <section className="panel samples-panel">
@@ -142,16 +143,16 @@ export default function SampleList() {
               type="button"
               className="secondary-btn"
               onClick={() => {
-                setOpenedAnalysis(null)
-                setOpenedExperiment(null)
+                setOpenedSaved(null)
+                setOpenedSummary(null)
               }}
             >
               Back to sample
             </button>
             <h2>{selected.name}</h2>
             <p>
-              {openedExperiment.experiment_type} · {openedExperiment.original_filename} ·
-              analysis version {openedExperiment.analysis_version}
+              {openedSummary.experiment_type} · {openedSummary.original_filename} ·
+              analysis version {openedSummary.analysis_version}
             </p>
           </header>
           {error && (
@@ -160,7 +161,11 @@ export default function SampleList() {
             </div>
           )}
         </section>
-        <MagnetometryUpload readOnly initialResult={openedAnalysis} />
+        {openedSaved.experiment_type === 'xrd' ? (
+          <XrdUpload readOnly initialResult={openedSaved.analysis_json} />
+        ) : (
+          <MagnetometryUpload readOnly initialResult={openedSaved.analysis_json} />
+        )}
       </div>
     )
   }
@@ -220,12 +225,20 @@ export default function SampleList() {
           </section>
         </section>
 
-        <MagnetometryUpload
-          sampleId={selected.id}
-          onSaved={() => {
-            void refreshSelected(selected.id)
-          }}
-        />
+        <div className="sample-upload-stack">
+          <MagnetometryUpload
+            sampleId={selected.id}
+            onSaved={() => {
+              void refreshSelected(selected.id)
+            }}
+          />
+          <XrdUpload
+            sampleId={selected.id}
+            onSaved={() => {
+              void refreshSelected(selected.id)
+            }}
+          />
+        </div>
       </div>
     )
   }
@@ -234,7 +247,7 @@ export default function SampleList() {
     <section className="panel samples-panel">
       <header className="panel-header">
         <h2>Samples</h2>
-        <p>Create a sample, then upload and reopen saved magnetometry experiments.</p>
+        <p>Create a sample, then upload and reopen saved magnetometry and XRD experiments.</p>
       </header>
 
       <form className="sample-create" onSubmit={(event) => void handleCreate(event)}>

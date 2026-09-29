@@ -679,3 +679,36 @@
   letter-spacing: 0.04em;
   font-weight: 700;
 }
+
+.sample-upload-stack {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.xrd-peak-table-wrap {
+  overflow-x: auto;
+}
+
+.xrd-peak-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.xrd-peak-table th,
+.xrd-peak-table td {
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.xrd-peak-table th {
+  color: #64748b;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.xrd-plot .recharts-scatter-symbol {
+  outline: none;
+}

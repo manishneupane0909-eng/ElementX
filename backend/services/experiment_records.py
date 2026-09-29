@@ -16,9 +16,15 @@ from services.magnetometry_analysis import (
     analyze_quantum_design_magnetometry,
 )
 from services.parsers.quantum_design import is_quantum_design_dat
-from services.storage import remove_experiment_directory, write_original_dat
+from services.storage import remove_experiment_directory, write_original_dat, write_original_file
+from services.xrd_analysis import (
+    XRD_PIPELINE_VERSION,
+    analyze_xrd_bytes,
+    suffix_for_xrd_filename,
+)
 
 EXPERIMENT_TYPE_MAGNETOMETRY = "magnetometry"
+EXPERIMENT_TYPE_XRD = "xrd"
 
 
 class SampleNotFoundError(LookupError):
@@ -143,6 +149,47 @@ def create_magnetometry_experiment(
         analysis_version=MAGNETOMETRY_PIPELINE_VERSION,
         analysis_json=stored,
         user_confirmed_mass_mg=user_confirmed_mass_mg,
+    )
+    try:
+        db.add(experiment)
+        sample = get_sample(db, sample_id)
+        sample.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(experiment)
+    except Exception:
+        db.rollback()
+        remove_experiment_directory(experiment_id)
+        raise
+
+    return experiment
+
+
+def create_xrd_experiment(
+    db: Session,
+    sample_id: str,
+    original_filename: str,
+    content: bytes,
+) -> Experiment:
+    get_sample(db, sample_id)
+
+    analysis = analyze_xrd_bytes(content, original_filename)
+    stored = jsonable_encoder(analysis)
+    stored["analysis_version"] = XRD_PIPELINE_VERSION
+
+    experiment_id = str(uuid4())
+    suffix = suffix_for_xrd_filename(original_filename)
+    relative_path = write_original_file(experiment_id, content, suffix)
+
+    experiment = Experiment(
+        id=experiment_id,
+        sample_id=sample_id,
+        experiment_type=EXPERIMENT_TYPE_XRD,
+        original_filename=original_filename,
+        uploaded_at=datetime.now(timezone.utc),
+        raw_file_path=relative_path,
+        analysis_version=XRD_PIPELINE_VERSION,
+        analysis_json=stored,
+        user_confirmed_mass_mg=None,
     )
     try:
         db.add(experiment)

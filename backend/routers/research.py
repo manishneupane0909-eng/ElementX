@@ -16,6 +16,7 @@ from services.experiment_records import (
     SampleNotFoundError,
     create_magnetometry_experiment,
     create_sample,
+    create_xrd_experiment,
     get_experiment,
     get_sample,
     list_experiment_summaries,
@@ -28,6 +29,7 @@ from services.mh_analysis import MHAnalysisError
 from services.parsers.quantum_design import QuantumDesignParseError
 from services.sample_provenance import SampleProvenanceError
 from services.saturation import SaturationAnalysisError
+from services.xrd_analysis import ALLOWED_XRD_SUFFIXES, InvalidXrdUploadError
 
 router = APIRouter(prefix="/api/research", tags=["research"])
 
@@ -152,6 +154,44 @@ async def create_scientific_experiment(
         raise HTTPException(
             status_code=500,
             detail="Failed to save experiment.",
+        )
+
+
+@router.post("/samples/{sample_id}/xrd-experiments", status_code=201)
+async def create_scientific_xrd_experiment(
+    sample_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="An XRD filename is required.")
+
+    suffix = file.filename.lower()
+    if not any(suffix.endswith(allowed) for allowed in ALLOWED_XRD_SUFFIXES):
+        raise HTTPException(
+            status_code=400,
+            detail="Only .txt, .csv, .xy, and two-column .dat XRD files are supported.",
+        )
+
+    try:
+        content = await file.read()
+        experiment = create_xrd_experiment(
+            db,
+            sample_id=sample_id,
+            original_filename=file.filename,
+            content=content,
+        )
+        return _experiment_detail_payload(experiment)
+    except HTTPException:
+        raise
+    except SampleNotFoundError:
+        raise HTTPException(status_code=404, detail="Sample not found.")
+    except InvalidXrdUploadError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save XRD experiment.",
         )
 
 

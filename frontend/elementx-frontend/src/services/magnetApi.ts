@@ -366,6 +366,48 @@ export interface MagnetometryAnalyzeResult {
   analysis_version?: string;
 }
 
+export interface XrdFileInfo {
+  filename: string;
+  format: string;
+}
+
+export interface XrdSeries {
+  two_theta_deg: number[];
+  intensity: number[];
+}
+
+export interface XrdSummary {
+  point_count: number;
+  two_theta_min_deg: number;
+  two_theta_max_deg: number;
+  intensity_min: number;
+  intensity_max: number;
+}
+
+export interface XrdCandidatePeak {
+  two_theta_deg: number;
+  intensity: number;
+}
+
+export interface XrdPeakDetection {
+  method: string;
+  label: string;
+  prominence_fraction_of_max: number;
+  min_distance_points: number;
+}
+
+export interface XrdAnalysisResult {
+  analysis_version: string;
+  file: XrdFileInfo;
+  series: XrdSeries;
+  summary: XrdSummary;
+  peaks: XrdCandidatePeak[];
+  peak_detection?: XrdPeakDetection;
+  warnings: string[];
+}
+
+export type ExperimentAnalysis = MagnetometryAnalyzeResult | XrdAnalysisResult;
+
 /**
  * Upload and analyze a Quantum Design / VersaLab .DAT magnetometry file.
  */
@@ -412,15 +454,35 @@ export interface SampleDetail extends SampleSummary {
   experiments: ExperimentSummary[];
 }
 
-export interface SavedExperiment {
+interface SavedExperimentBase {
   id: string;
   sample_id: string;
-  experiment_type: string;
   original_filename: string;
   uploaded_at: string;
   analysis_version: string;
   user_confirmed_mass_mg: number | null;
+}
+
+export interface SavedMagnetometryExperiment extends SavedExperimentBase {
+  experiment_type: 'magnetometry';
   analysis_json: MagnetometryAnalyzeResult;
+}
+
+export interface SavedXrdExperiment extends SavedExperimentBase {
+  experiment_type: 'xrd';
+  analysis_json: XrdAnalysisResult;
+}
+
+export type SavedExperiment = SavedMagnetometryExperiment | SavedXrdExperiment;
+
+export function isXrdAnalysisResult(
+  analysis: ExperimentAnalysis,
+): analysis is XrdAnalysisResult {
+  return (
+    'series' in analysis &&
+    analysis.series != null &&
+    Array.isArray(analysis.series.two_theta_deg)
+  );
 }
 
 const RESEARCH_SAMPLES = `${API_BASE_URL}/api/research/samples`;
@@ -453,7 +515,7 @@ export async function createSampleExperiment(
   sampleId: string,
   file: File,
   userConfirmedMassMg?: number,
-): Promise<SavedExperiment> {
+): Promise<SavedMagnetometryExperiment> {
   const formData = new FormData();
   formData.append('file', file);
   if (userConfirmedMassMg !== undefined) {
@@ -465,9 +527,27 @@ export async function createSampleExperiment(
     body: formData,
   });
 
-  return handleResponse<SavedExperiment>(
+  return handleResponse<SavedMagnetometryExperiment>(
     response,
     'Failed to save magnetometry experiment.',
+  );
+}
+
+export async function createXrdExperiment(
+  sampleId: string,
+  file: File,
+): Promise<SavedXrdExperiment> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${RESEARCH_SAMPLES}/${sampleId}/xrd-experiments`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  return handleResponse<SavedXrdExperiment>(
+    response,
+    'Failed to save XRD experiment.',
   );
 }
 
@@ -485,6 +565,7 @@ export const magnetApi = {
   listSamples,
   getSample,
   createSampleExperiment,
+  createXrdExperiment,
   getExperiment,
 };
 
