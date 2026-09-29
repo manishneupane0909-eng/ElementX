@@ -40,6 +40,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Local scientific Sample / Experiment persistence
+data/
+
 # MongoDB connection (if you add .env file)
 # Keep main.py but use env vars in production
 

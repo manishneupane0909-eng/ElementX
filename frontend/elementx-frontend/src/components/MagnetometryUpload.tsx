@@ -1,6 +1,7 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import {
   analyzeMagnetometry,
+  createSampleExperiment,
   MagnetApiError,
   type HighFieldAnalysis,
   type HysteresisAnalysis,
@@ -130,12 +131,14 @@ function SampleMassSection({
   onConfirmedMassChange,
   onReanalyze,
   reanalyzeDisabled,
+  allowConfirmation = true,
 }: {
   provenance: MassProvenance
   confirmedMass: string
   onConfirmedMassChange: (value: string) => void
   onReanalyze: () => void
   reanalyzeDisabled: boolean
+  allowConfirmation?: boolean
 }) {
   const massInputId = useId()
   const needsConfirmation = MASS_CONFIRMATION_STATUSES.has(provenance.resolution_status)
@@ -210,7 +213,7 @@ function SampleMassSection({
 
       <WarningList warnings={provenance.warnings} />
 
-      {needsConfirmation && (
+      {needsConfirmation && allowConfirmation && (
         <div className="mass-confirm">
           <label htmlFor={massInputId}>Confirmed sample mass (mg)</label>
           <div className="field-row">
@@ -465,21 +468,55 @@ function MhLoopCard({
   )
 }
 
-export default function MagnetometryUpload() {
+export interface MagnetometryUploadProps {
+  sampleId?: string
+  initialResult?: MagnetometryAnalyzeResult | null
+  readOnly?: boolean
+  onSaved?: () => void
+}
+
+export default function MagnetometryUpload({
+  sampleId,
+  initialResult = null,
+  readOnly = false,
+  onSaved,
+}: MagnetometryUploadProps) {
   const fileInputId = useId()
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [confirmedMass, setConfirmedMass] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<MagnetometryAnalyzeResult | null>(null)
+  const [result, setResult] = useState<MagnetometryAnalyzeResult | null>(
+    initialResult ?? null,
+  )
+
+  useEffect(() => {
+    if (initialResult) {
+      setResult(initialResult)
+      setError(null)
+    }
+  }, [initialResult])
+
+  const persistMode = Boolean(sampleId) && !readOnly
+  const allowConfirmation = !readOnly && !persistMode
 
   const runAnalysis = async (file: File, userConfirmedMassMg?: number) => {
     setLoading(true)
     setError(null)
 
     try {
-      const analysis = await analyzeMagnetometry(file, userConfirmedMassMg)
-      setResult(analysis)
+      if (sampleId) {
+        const saved = await createSampleExperiment(
+          sampleId,
+          file,
+          userConfirmedMassMg,
+        )
+        setResult(saved.analysis_json)
+        onSaved?.()
+      } else {
+        const analysis = await analyzeMagnetometry(file, userConfirmedMassMg)
+        setResult(analysis)
+      }
     } catch (err) {
       setResult(null)
       setError(errorMessage(err, 'Magnetometry analysis failed.'))
@@ -534,14 +571,23 @@ export default function MagnetometryUpload() {
   return (
     <section className="panel magnetometry-panel">
       <header className="panel-header">
-        <h2>Magnetometry Analysis</h2>
+        <h2>
+          {readOnly
+            ? 'Saved Magnetometry Experiment'
+            : persistMode
+              ? 'Upload Magnetometry Experiment'
+              : 'Magnetometry Analysis'}
+        </h2>
         <p>
-          Upload a Quantum Design VersaLab / MultiVu .dat file. ElementX sends the
-          file to the backend analysis pipeline and displays the returned experiment
-          summary, M-T identification, and M-H results.
+          {readOnly
+            ? 'This view renders the stored analysis JSON. The scientific pipeline is not re-run.'
+            : persistMode
+              ? 'Upload a Quantum Design VersaLab / MultiVu .dat file. ElementX analyzes it with the existing magnetometry pipeline and saves the raw file plus analysis under this sample.'
+              : 'Upload a Quantum Design VersaLab / MultiVu .dat file. ElementX sends the file to the backend analysis pipeline and displays the returned experiment summary, M-T identification, and M-H results.'}
         </p>
       </header>
 
+      {!readOnly && (
       <div className="magnetometry-upload">
         <div className="field-group">
           <label htmlFor={fileInputId}>Quantum Design .dat file</label>
@@ -567,11 +613,18 @@ export default function MagnetometryUpload() {
               onClick={() => void handleAnalyze()}
               disabled={loading || !selectedFile}
             >
-              {loading ? 'Analyzing…' : 'Analyze'}
+              {loading
+                ? persistMode
+                  ? 'Saving…'
+                  : 'Analyzing…'
+                : persistMode
+                  ? 'Upload & Save'
+                  : 'Analyze'}
             </button>
           </div>
         </div>
       </div>
+      )}
 
       {loading && (
         <div className="status-banner status-banner--info" role="status">
@@ -625,6 +678,12 @@ export default function MagnetometryUpload() {
                 label="Normalization available"
                 value={result.summary.normalization_available ? 'Yes' : 'No'}
               />
+              {result.analysis_version && (
+                <ResultRow
+                  label="Analysis version"
+                  value={result.analysis_version}
+                />
+              )}
             </dl>
             <WarningList warnings={result.warnings} />
             <WarningList warnings={result.segmentation.warnings} />
@@ -637,6 +696,7 @@ export default function MagnetometryUpload() {
               onConfirmedMassChange={setConfirmedMass}
               onReanalyze={() => void handleReanalyze()}
               reanalyzeDisabled={loading}
+              allowConfirmation={allowConfirmation}
             />
           )}
 

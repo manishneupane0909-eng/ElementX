@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import MagnetometryUpload from './components/MagnetometryUpload'
+import SampleList from './components/SampleList'
 import Search from './components/search'
 import './App.css'
 
-type AppMode = 'legacy' | 'analytics' | 'magnetometry'
+type AppMode = 'legacy' | 'analytics' | 'magnetometry' | 'samples'
 
 const ELEMENTS: Record<string, number> = {
   H: 1.008, He: 4.003, Li: 6.941, Be: 9.012, B: 10.81, C: 12.01,
@@ -113,6 +114,14 @@ function App() {
           >
             Magnetometry
           </button>
+          <button
+            type="button"
+            className={`mode-switcher__btn${mode === 'samples' ? ' mode-switcher__btn--active' : ''}`}
+            onClick={() => setMode('samples')}
+            aria-pressed={mode === 'samples'}
+          >
+            Samples
+          </button>
         </nav>
       </header>
 
@@ -122,6 +131,7 @@ function App() {
           <Search elements={ELEMENTS} normalizeSymbol={normalizeSymbol} />
         )}
         {mode === 'magnetometry' && <MagnetometryUpload />}
+        {mode === 'samples' && <SampleList />}
       </main>
     </div>
   )

@@ -363,6 +363,7 @@ export interface MagnetometryAnalyzeResult {
   mh_analyses: MHAnalysisEntry[];
   summary: MagnetometrySummary;
   warnings: string[];
+  analysis_version?: string;
 }
 
 /**
@@ -389,11 +390,102 @@ export async function analyzeMagnetometry(
   );
 }
 
+export interface SampleSummary {
+  id: string;
+  name: string;
+  formula: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  experiment_count?: number;
+}
+
+export interface ExperimentSummary {
+  id: string;
+  experiment_type: string;
+  original_filename: string;
+  uploaded_at: string;
+  analysis_version: string;
+}
+
+export interface SampleDetail extends SampleSummary {
+  experiments: ExperimentSummary[];
+}
+
+export interface SavedExperiment {
+  id: string;
+  sample_id: string;
+  experiment_type: string;
+  original_filename: string;
+  uploaded_at: string;
+  analysis_version: string;
+  user_confirmed_mass_mg: number | null;
+  analysis_json: MagnetometryAnalyzeResult;
+}
+
+const RESEARCH_SAMPLES = `${API_BASE_URL}/api/research/samples`;
+const RESEARCH_EXPERIMENTS = `${API_BASE_URL}/api/research/experiments`;
+
+export async function createSample(body: {
+  name: string;
+  formula?: string;
+  notes?: string;
+}): Promise<SampleSummary> {
+  const response = await fetch(RESEARCH_SAMPLES, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return handleResponse<SampleSummary>(response, 'Failed to create sample.');
+}
+
+export async function listSamples(): Promise<SampleSummary[]> {
+  const response = await fetch(RESEARCH_SAMPLES);
+  return handleResponse<SampleSummary[]>(response, 'Failed to load samples.');
+}
+
+export async function getSample(sampleId: string): Promise<SampleDetail> {
+  const response = await fetch(`${RESEARCH_SAMPLES}/${sampleId}`);
+  return handleResponse<SampleDetail>(response, 'Failed to load sample.');
+}
+
+export async function createSampleExperiment(
+  sampleId: string,
+  file: File,
+  userConfirmedMassMg?: number,
+): Promise<SavedExperiment> {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (userConfirmedMassMg !== undefined) {
+    formData.append('user_confirmed_mass_mg', String(userConfirmedMassMg));
+  }
+
+  const response = await fetch(`${RESEARCH_SAMPLES}/${sampleId}/experiments`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  return handleResponse<SavedExperiment>(
+    response,
+    'Failed to save magnetometry experiment.',
+  );
+}
+
+export async function getExperiment(experimentId: string): Promise<SavedExperiment> {
+  const response = await fetch(`${RESEARCH_EXPERIMENTS}/${experimentId}`);
+  return handleResponse<SavedExperiment>(response, 'Failed to load experiment.');
+}
+
 export const magnetApi = {
   queryFormula,
   parseCif,
   analyzeMagnet,
   analyzeMagnetometry,
+  createSample,
+  listSamples,
+  getSample,
+  createSampleExperiment,
+  getExperiment,
 };
 
 export default magnetApi;

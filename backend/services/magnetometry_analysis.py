@@ -21,6 +21,7 @@ from services.parsers.quantum_design import parse_quantum_design_dat
 
 FORMAT_QUANTUM_DESIGN_DAT = "quantum_design_dat"
 SEGMENT_TYPE_MH = "M-H"
+MAGNETOMETRY_PIPELINE_VERSION = "1"
 
 
 def _aggregate_warnings(

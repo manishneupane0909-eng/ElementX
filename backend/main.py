@@ -21,6 +21,7 @@ from routers.samples import router as samples_router
 from routers.ai import router as ai_router
 from routers.demo import router as demo_router
 from routers.agent import router as agent_router
+from routers.research import router as research_router
 from services.parsers import parse_raw_file
 from services.phase_detector import detect_tau_mnal
 from services.llm_client import llm_available
@@ -62,6 +63,7 @@ app.include_router(samples_router)
 app.include_router(ai_router)
 app.include_router(demo_router)
 app.include_router(agent_router)
+app.include_router(research_router)
 
 _LOCAL_USERS_BY_EMAIL = local_store._LOCAL_USERS_BY_EMAIL  # noqa: SLF001
 
@@ -710,6 +712,8 @@ def root():
             "parse_cif": "POST /api/parse-cif",
             "analyze_magnet": "POST /api/analyze-magnet",
             "magnetometry_analyze": "POST /api/magnetometry/analyze",
+            "research_samples": "POST/GET /api/research/samples",
+            "research_experiments": "GET /api/research/experiments/{id}",
         },
     }
 
