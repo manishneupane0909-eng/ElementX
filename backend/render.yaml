@@ -1,3 +1,7 @@
+# SUPERSEDED — do not point Render at this file.
+# The canonical Blueprint is the root render.yaml (persistent disk, production environment guards,
+# explicit CORS). This older file has no ELEMENTX_ENV, no disk and no CORS_ORIGINS, so a service
+# created from it would run in development mode on ephemeral storage. Kept for history only.
 services:
   - type: web
     name: elementx-backend

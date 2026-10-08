@@ -1,3 +1,12 @@
+// Local process manager config (development / self-hosting). Not used by Render.
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} must be set (generate one with: openssl rand -hex 32)`);
+  }
+  return value;
+}
+
 module.exports = {
   apps: [
     {
@@ -8,7 +17,7 @@ module.exports = {
       cwd: '/Users/nish/ElementX/backend',
       env: {
         MONGODB_URI: process.env.MONGODB_URI || 'mongodb://localhost:27017/elementx',
-        JWT_SECRET: process.env.JWT_SECRET || 'superlongrandomkey1234567890',
+        JWT_SECRET: requireEnv('JWT_SECRET'),
       },
       instances: 1,
       exec_mode: 'fork',

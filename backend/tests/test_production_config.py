@@ -36,11 +36,16 @@ class ProductionConfigValidationTests(unittest.TestCase):
             "JWT_SECRET": STRONG_SECRET,
             "MONGODB_URI": "mongodb+srv://lab-user:hunter2pass@cluster.example.net/elementx",
             "DATA_DIR": str(root / "data"),
-            "DATABASE_URL": f"sqlite:///{root / 'db' / 'elementx.db'}",
+            "DATABASE_URL": f"sqlite:///{root / 'data' / 'elementx.db'}",
             "CORS_ORIGINS": "https://app.elementx.example",
         }
+        (root / "data").mkdir()
+        # Pretend DATA_DIR is a mounted persistent disk (a temp dir never is).
+        self._mount = patch("services.production_config._is_mount_point", return_value=True)
+        self._mount.start()
 
     def tearDown(self) -> None:
+        self._mount.stop()
         self._tmp.cleanup()
 
     def _without(self, key: str) -> dict:
@@ -103,8 +108,52 @@ class ProductionConfigValidationTests(unittest.TestCase):
     def test_uncreatable_data_dir_fails(self) -> None:
         file_path = Path(self._tmp.name) / "blocker"
         file_path.write_text("x")
-        env = {**self.valid, "DATA_DIR": str(file_path / "child")}
+        env = {
+            **self.valid,
+            "DATA_DIR": str(file_path / "child"),
+            "ELEMENTX_ALLOW_UNMOUNTED_DATA_DIR": "true",
+        }
         self.assertIn("DATA_DIR is not writable", self._problems(env))
+
+    def test_missing_data_dir_means_the_disk_is_not_attached(self) -> None:
+        env = {**self.valid, "DATA_DIR": str(Path(self._tmp.name) / "not-mounted")}
+        env["DATABASE_URL"] = f"sqlite:///{Path(env['DATA_DIR']) / 'elementx.db'}"
+        problems = self._problems(env)
+        self.assertIn("persistent disk", problems)
+        self.assertFalse((Path(env["DATA_DIR"])).exists(), "validation must not create DATA_DIR")
+
+    def test_unmounted_data_dir_is_refused_to_prevent_ephemeral_fallback(self) -> None:
+        with patch("services.production_config._is_mount_point", return_value=False):
+            self.assertIn("not a mounted persistent volume", self._problems(self.valid))
+            override = {**self.valid, "ELEMENTX_ALLOW_UNMOUNTED_DATA_DIR": "true"}
+            self.assertEqual(validate_production_config(override), [])
+
+    def test_database_must_live_on_the_same_volume_as_original_files(self) -> None:
+        elsewhere = Path(self._tmp.name) / "other-volume"
+        elsewhere.mkdir()
+        env = {**self.valid, "DATABASE_URL": f"sqlite:///{elsewhere / 'elementx.db'}"}
+        self.assertIn("inside DATA_DIR", self._problems(env))
+        # A symlink escaping DATA_DIR must not satisfy the check either.
+        link = Path(self.valid["DATA_DIR"]) / "escape"
+        link.symlink_to(elsewhere)
+        env = {**self.valid, "DATABASE_URL": f"sqlite:///{link / 'elementx.db'}"}
+        self.assertIn("inside DATA_DIR", self._problems(env))
+
+    def test_only_sqlite_databases_are_accepted(self) -> None:
+        env = {**self.valid, "DATABASE_URL": "postgresql://u:p@host/db"}
+        self.assertIn("sqlite", self._problems(env))
+        self.assertNotIn("p@host", self._problems(env))
+
+    def test_multiple_workers_are_refused(self) -> None:
+        self.assertIn("WEB_CONCURRENCY must be 1", self._problems({**self.valid, "WEB_CONCURRENCY": "4"}))
+        self.assertEqual(validate_production_config({**self.valid, "WEB_CONCURRENCY": "1"}), [])
+        self.assertIn("integer", self._problems({**self.valid, "WEB_CONCURRENCY": "many"}))
+
+    def test_cors_origins_must_be_bare_origins(self) -> None:
+        env = {**self.valid, "CORS_ORIGINS": "https://app.elementx.example/app"}
+        self.assertIn("bare origins", self._problems(env))
+        env = {**self.valid, "CORS_ORIGINS": "app.elementx.example"}
+        self.assertIn("bare origins", self._problems(env))
 
     def test_relative_or_memory_sqlite_url_fails(self) -> None:
         relative = {**self.valid, "DATABASE_URL": "sqlite:///./data/elementx.db"}
@@ -163,7 +212,8 @@ class CorsAndDemoPolicyTests(unittest.TestCase):
     def test_demo_bootstrap_flag(self) -> None:
         self.assertTrue(demo_bootstrap_enabled({}))
         self.assertFalse(demo_bootstrap_enabled({"ELEMENTX_ENV": "production"}))
-        self.assertTrue(
+        # There is deliberately no production override for the shared demo account.
+        self.assertFalse(
             demo_bootstrap_enabled({"ELEMENTX_ENV": "production", "ELEMENTX_ENABLE_DEMO": "1"})
         )
 
@@ -171,11 +221,19 @@ class CorsAndDemoPolicyTests(unittest.TestCase):
 class ProductionRuntimeBehaviourTests(unittest.TestCase):
     def test_demo_bootstrap_is_disabled_in_production(self) -> None:
         client = TestClient(app)
-        with patch.dict(os.environ, {"ELEMENTX_ENV": "production"}):
-            os.environ.pop("ELEMENTX_ENABLE_DEMO", None)
+        with patch.dict(os.environ, {"ELEMENTX_ENV": "production", "ELEMENTX_ENABLE_DEMO": "true"}):
             response = client.post("/api/demo/bootstrap")
         self.assertEqual(response.status_code, 404)
         self.assertNotIn("password", response.text.lower())
+
+    def test_demo_bootstrap_does_not_touch_accounts_in_production(self) -> None:
+        import local_store
+
+        before = dict(local_store._LOCAL_USERS_BY_EMAIL)  # noqa: SLF001
+        client = TestClient(app)
+        with patch.dict(os.environ, {"ELEMENTX_ENV": "production"}):
+            client.post("/api/demo/bootstrap")
+        self.assertEqual(before, local_store._LOCAL_USERS_BY_EMAIL)  # noqa: SLF001
 
     def test_production_never_falls_back_to_in_memory_accounts(self) -> None:
         client = TestClient(app)

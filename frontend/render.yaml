@@ -1,3 +1,6 @@
+# LEGACY — Create React App rollback reference. NOT USED for deployment.
+# The canonical frontend is frontend/elementx-frontend (Vite); see the root render.yaml and
+# docs/PRODUCTION.md. Keep this file only so the CRA app can be redeployed if a rollback is needed.
 services:
   - type: web
     name: elementx-frontend

@@ -4,6 +4,7 @@ Materials Project API client for formula-based magnetic and structural lookups.
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, Optional
 
@@ -17,6 +18,9 @@ ORDERING_LABELS: dict[str, str] = {
     "PM": "paramagnetic",
     "Unknown": "unknown",
 }
+
+
+logger = logging.getLogger("elementx")
 
 
 class MaterialsClientError(Exception):
@@ -148,7 +152,11 @@ class MaterialsClient:
             message = str(exc).lower()
             if "api key" in message or "unauthorized" in message or "401" in message:
                 raise MaterialsAPIKeyError("Invalid or unauthorized Materials Project API key.") from exc
-            raise MaterialsClientError(f"Materials Project query failed: {exc}") from exc
+            # Upstream error text is logged server-side only; it is never returned to clients.
+            logger.warning("Materials Project query failed (%s)", type(exc).__name__)
+            raise MaterialsClientError(
+                "Materials Project is temporarily unavailable. Please try again later."
+            ) from exc
 
         if not docs:
             raise MaterialsNotFoundError(f"No Materials Project entry found for formula '{normalized}'.")

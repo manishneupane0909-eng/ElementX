@@ -17,14 +17,16 @@ from dotenv import load_dotenv
 
 import database
 import local_store
-from auth import verify_token
+from auth import require_auth_in_production, verify_token
 from routers.samples import router as samples_router
 from routers.ai import router as ai_router
 from routers.demo import router as demo_router
 from routers.agent import router as agent_router
 from routers.research import router as research_router
 from routers.research_copilot import router as research_copilot_router
+from services.demo_data import DEMO_EMAIL
 from services.production_config import (
+    api_docs_settings,
     assert_production_ready,
     cors_settings,
     is_production,
@@ -37,6 +39,7 @@ from services.upload_limits import (
 from services.parsers import parse_raw_file
 from services.phase_detector import detect_tau_mnal
 from services.llm_client import llm_available
+from services.db import init_db as init_research_db, storage_ready
 
 # database.py loads backend/.env; the repo-root .env is a fallback for keys such as MP_API_KEY.
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -67,7 +70,7 @@ logger = logging.getLogger("elementx")
 # No-op for local development.
 assert_production_ready()
 
-app = FastAPI(title="ElementX v2", version="2.0.0")
+app = FastAPI(title="ElementX v2", version="2.0.0", **api_docs_settings())
 
 app.add_middleware(CORSMiddleware, **cors_settings())
 
@@ -79,6 +82,23 @@ app.include_router(research_router)
 app.include_router(research_copilot_router)
 
 _LOCAL_USERS_BY_EMAIL = local_store._LOCAL_USERS_BY_EMAIL  # noqa: SLF001
+
+
+@app.on_event("startup")
+async def _startup_research_storage():
+    """Open (and upgrade) the research database at boot so problems surface immediately.
+
+    In production a failure here aborts startup rather than serving a half-working app.
+    """
+    try:
+        init_research_db()
+        logger.info("Research database ready.")
+    except Exception:
+        logger.exception("Research database could not be initialised")
+        if is_production():
+            raise RuntimeError(
+                "Production startup aborted: the research database could not be opened."
+            ) from None
 
 
 @app.on_event("startup")
@@ -196,6 +216,14 @@ class AnalyzeMagnetResult(BaseModel):
 materials_client = MaterialsClient()
 
 
+def _is_reserved_demo_email(email: str) -> bool:
+    """The shared demo login is publicly documented, so it is unusable in production.
+
+    This holds even if the account already exists in the identity database.
+    """
+    return is_production() and email.strip().lower() == DEMO_EMAIL.lower()
+
+
 def _require_identity_database() -> None:
     """Production must never fall back to in-memory user accounts."""
     if is_production() and not database.DB_AVAILABLE:
@@ -206,6 +234,8 @@ def _require_identity_database() -> None:
 async def register(user: UserIn):
     _require_identity_database()
     try:
+        if _is_reserved_demo_email(user.email):
+            raise HTTPException(400, "Email already registered")
         if database.DB_AVAILABLE:
             if await database.db.users.find_one({"email": user.email}):
                 raise HTTPException(400, "Email already registered")
@@ -253,6 +283,9 @@ async def register(user: UserIn):
 async def login(data: LoginRequest):
     _require_identity_database()
     try:
+        if _is_reserved_demo_email(data.email):
+            raise HTTPException(401, "Invalid credentials")
+
         if database.DB_AVAILABLE:
             user = await database.db.users.find_one({"email": data.email})
         else:
@@ -452,7 +485,8 @@ async def upload_xrd(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"XRD upload failed: {str(e)}")
+        logger.exception("Legacy XRD upload failed")
+        raise HTTPException(500, "XRD upload failed.")
 
 
 @app.post("/api/magnetic/upload")
@@ -549,10 +583,15 @@ async def upload_magnetic(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"Magnetic upload failed: {str(e)}")
+        logger.exception("Legacy magnetic upload failed")
+        raise HTTPException(500, "Magnetic upload failed.")
 
 
-@app.post("/api/query-formula", response_model=FormulaQueryResult)
+@app.post(
+    "/api/query-formula",
+    response_model=FormulaQueryResult,
+    dependencies=[Depends(require_auth_in_production)],
+)
 def query_formula(body: FormulaQueryRequest):
     """Query Materials Project for structural symmetry and magnetic properties by formula."""
     try:
@@ -566,10 +605,15 @@ def query_formula(body: FormulaQueryRequest):
     except MaterialsClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Formula query failed: {exc}") from exc
+        logger.exception("Formula query failed")
+        raise HTTPException(status_code=500, detail="Formula query failed.") from exc
 
 
-@app.post("/api/analyze-magnet", response_model=AnalyzeMagnetResult)
+@app.post(
+    "/api/analyze-magnet",
+    response_model=AnalyzeMagnetResult,
+    dependencies=[Depends(require_auth_in_production)],
+)
 def analyze_magnet(body: AnalyzeMagnetRequest):
     """
     Evaluate supply-chain criticality and theoretical magnet performance limits.
@@ -651,7 +695,11 @@ def analyze_magnet(body: AnalyzeMagnetRequest):
     )
 
 
-@app.post("/api/parse-cif", response_model=CifParseResult)
+@app.post(
+    "/api/parse-cif",
+    response_model=CifParseResult,
+    dependencies=[Depends(require_auth_in_production)],
+)
 async def parse_cif(file: UploadFile = File(...)):
     """Parse an uploaded CIF file and return lattice, symmetry, and density."""
     if not file.filename:
@@ -672,7 +720,7 @@ async def parse_cif(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail="CIF parsing failed.") from exc
 
 
-@app.post("/api/magnetometry/analyze")
+@app.post("/api/magnetometry/analyze", dependencies=[Depends(require_auth_in_production)])
 async def analyze_magnetometry_dat(
     file: UploadFile = File(...),
     user_confirmed_mass_mg: Optional[float] = Form(None),
@@ -729,6 +777,7 @@ def health():
         "mongodb": database.DB_AVAILABLE,
         "localMode": not database.DB_AVAILABLE,
         "aiLlm": llm_available(),
+        "researchStorage": storage_ready(),
         "materials_project_configured": bool(
             os.getenv("MP_API_KEY") or os.getenv("MATERIALS_PROJECT_API_KEY")
         ),

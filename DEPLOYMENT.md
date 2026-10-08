@@ -1,5 +1,12 @@
 # Deployment Guide for ElementX
 
+> **Superseded for ElementX v1.** The production deployment path is documented in
+> [`docs/PRODUCTION.md`](docs/PRODUCTION.md) (Vite frontend, persistent disk, required production
+> environment variables, backups in [`docs/BACKUP_AND_RECOVERY.md`](docs/BACKUP_AND_RECOVERY.md)).
+> The instructions below describe the legacy Create React App setup and an optional-MongoDB demo mode
+> and **must not be used for production**.
+
+
 This guide covers multiple ways to deploy your ElementX application so it runs automatically.
 
 ## Option 1: Docker Compose (Recommended for Local/Server)

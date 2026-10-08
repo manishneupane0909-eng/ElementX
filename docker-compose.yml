@@ -7,7 +7,7 @@ services:
       - "8000:8000"
     environment:
       - MONGODB_URI=${MONGODB_URI:-mongodb://localhost:27017/elementx}
-      - JWT_SECRET=${JWT_SECRET:-superlongrandomkey1234567890}
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET (generate with: openssl rand -hex 32)}
       - MP_API_KEY=${MP_API_KEY:-}
     restart: unless-stopped
     healthcheck:

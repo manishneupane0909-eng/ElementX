@@ -1,34 +1,91 @@
-# Render Blueprint — deploy backend + frontend together
-# Dashboard: New + → Blueprint → connect github.com/manishneupane0909-eng/ElementX
+# ElementX Render Blueprint (staging / production)
+#
+# IMPORTANT — read docs/PRODUCTION.md before applying this file.
+#   * Persistent disks are only available on Render plans that support them. The plan below is a
+#     placeholder: CONFIRM in the Render dashboard that it supports a disk (and what that costs)
+#     before creating the service. Without the disk the backend refuses to start in production
+#     (see ELEMENTX_ENV below) — it never silently falls back to ephemeral storage.
+#   * A service with a disk is a single instance by design (SQLite + one disk). Do not scale out.
+#   * Values marked `sync: false` are secrets or per-environment URLs and must be entered in the
+#     dashboard; they are intentionally not stored in Git.
+#   * This Blueprint does not deploy anything by itself. Create/sync it manually from the dashboard,
+#     choosing the branch you intend to deploy.
+#
+# Versions: PYTHON_VERSION / NODE_VERSION are the Render-supported runtime selectors. Confirm the exact
+# versions are offered in your dashboard; the app is tested on Python 3.11 and Node ^20.19 || >=22.12
+# (Vite 7 requirement).
+
 services:
+  # ------------------------------------------------------------------ backend (FastAPI)
   - type: web
     name: elementx-backend
     runtime: python
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: starter # VERIFY in the dashboard: must support a persistent disk.
+    numInstances: 1 # SQLite on a single disk: exactly one instance.
+    autoDeploy: false # deploys are triggered manually
+    buildCommand: pip install -r requirements.txt -c constraints.txt
+    # One worker only (SQLite). `exec` is implicit; Render injects $PORT.
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
     healthCheckPath: /health
+    disk:
+      name: elementx-data
+      mountPath: /var/data # DATA_DIR and the SQLite file must both live here
+      sizeGB: 5 # adjust to expected data volume; verify limits/pricing in the dashboard
     envVars:
+      - key: ELEMENTX_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      # --- persistence (same volume for the database and original files) ---
+      - key: DATA_DIR
+        value: /var/data
+      - key: DATABASE_URL
+        value: sqlite:////var/data/elementx.db
+      # --- secrets / per-environment values: set in the dashboard ---
       - key: JWT_SECRET
-        generateValue: true
-      # Optional — app works without MongoDB (in-memory auth fallback)
+        generateValue: true # random value generated once by Render; rotating it logs everyone out
       - key: MONGODB_URI
-        sync: false
-      # Free tier: https://aistudio.google.com/apikey → enable Generative Language API
+        sync: false # persistent identity database (MongoDB Atlas). Required in production.
+      - key: MP_API_KEY
+        sync: false # Materials Project; lookups return 503 without it
+      - key: CORS_ORIGINS
+        sync: false # exact frontend origin(s), comma-separated, e.g. https://elementx-frontend.onrender.com
+      # --- Physics Copilot / AI providers (optional; the Copilot falls back to stored records) ---
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
         value: gemini-2.5-flash
+      # --- upload limits (megabytes) ---
+      - key: MAX_UPLOAD_MB
+        value: "50"
+      - key: MAX_CIF_UPLOAD_MB
+        value: "5"
+      - key: SQLITE_BUSY_TIMEOUT_MS
+        value: "10000"
 
+  # ------------------------------------------------------------------ frontend (Vite static site)
+  # Replaces the legacy Create React App build. The CRA source stays in Git (frontend/src) for rollback;
+  # see docs/PRODUCTION.md for the rollback procedure.
   - type: web
     name: elementx-frontend
     runtime: static
-    rootDir: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: ./build
+    rootDir: frontend/elementx-frontend
+    autoDeploy: false
+    buildCommand: npm ci && npm run build:production
+    staticPublishPath: dist
     envVars:
-      - key: REACT_APP_API_URL
-        fromService:
-          name: elementx-backend
-          type: web
-          envVarKey: RENDER_EXTERNAL_URL
+      - key: NODE_VERSION
+        value: 22.12.0 # Vite 7 needs Node ^20.19 or >=22.12
+      - key: VITE_API_URL
+        sync: false # public https URL of elementx-backend, no trailing slash. Baked in at build time.
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin

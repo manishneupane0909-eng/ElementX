@@ -46,11 +46,21 @@ def is_production(env: Optional[Mapping[str, str]] = None) -> bool:
 
 
 def demo_bootstrap_enabled(env: Optional[Mapping[str, str]] = None) -> bool:
-    """The shared demo account is always available in dev, opt-in in production."""
+    """The shared demo account bootstrap exists for local development only.
+
+    It creates or resets a publicly documented login, so it is never available in
+    production (there is deliberately no override).
+    """
     source = os.environ if env is None else env
-    if not is_production(source):
-        return True
-    return source.get("ELEMENTX_ENABLE_DEMO", "").strip().lower() in {"1", "true", "yes"}
+    return not is_production(source)
+
+
+def api_docs_settings(env: Optional[Mapping[str, str]] = None) -> dict:
+    """Interactive API docs and the OpenAPI schema are development tools only."""
+    source = os.environ if env is None else env
+    if is_production(source):
+        return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    return {"docs_url": "/docs", "redoc_url": "/redoc", "openapi_url": "/openapi.json"}
 
 
 def parse_cors_origins(raw: Optional[str]) -> list[str]:
@@ -121,8 +131,17 @@ def _directory_is_writable(path: Path) -> bool:
         return False
 
 
+def _is_mount_point(path: Path) -> bool:
+    return os.path.ismount(path)
+
+
+def _truthy(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes"}
+
+
 def _check_data_directory(env: Mapping[str, str], problems: list[str]) -> None:
     raw = env.get("DATA_DIR", "").strip()
+    data_dir: Optional[Path] = None
     if not raw:
         problems.append("DATA_DIR is not set; production requires an explicit data directory.")
     else:
@@ -131,23 +150,71 @@ def _check_data_directory(env: Mapping[str, str], problems: list[str]) -> None:
             problems.append("DATA_DIR must be an absolute path.")
         elif path.exists() and not path.is_dir():
             problems.append("DATA_DIR exists but is not a directory.")
-        elif not _directory_is_writable(path):
-            problems.append("DATA_DIR is not writable.")
+        else:
+            # A missing DATA_DIR is only acceptable when it can be created *on a mounted
+            # volume*; otherwise production would silently write to ephemeral storage.
+            if not path.exists() and not _truthy(env.get("ELEMENTX_ALLOW_UNMOUNTED_DATA_DIR", "")):
+                problems.append(
+                    "DATA_DIR does not exist. Attach the persistent disk at this path "
+                    "(a missing mount would otherwise fall back to ephemeral storage)."
+                )
+            elif not _directory_is_writable(path):
+                problems.append("DATA_DIR is not writable.")
+            else:
+                data_dir = path
+                if not _is_mount_point(path) and not _truthy(
+                    env.get("ELEMENTX_ALLOW_UNMOUNTED_DATA_DIR", "")
+                ):
+                    problems.append(
+                        "DATA_DIR is not a mounted persistent volume; refusing to use "
+                        "ephemeral storage in production. Attach a persistent disk at "
+                        "DATA_DIR (set ELEMENTX_ALLOW_UNMOUNTED_DATA_DIR=true only for a "
+                        "host whose directory is already durable)."
+                    )
 
     database_url = env.get("DATABASE_URL", "").strip()
     if not database_url:
         problems.append("DATABASE_URL is not set; production requires an explicit database.")
         return
-    if database_url.startswith("sqlite:///"):
-        raw_path = database_url.removeprefix("sqlite:///")
-        if raw_path in {"", ":memory:"} or raw_path.startswith("file:"):
-            problems.append("DATABASE_URL must point to a file-backed database in production.")
+    if not database_url.startswith("sqlite:///"):
+        problems.append("DATABASE_URL must be a sqlite:/// file database in production.")
+        return
+    raw_path = database_url.removeprefix("sqlite:///")
+    if raw_path in {"", ":memory:"} or raw_path.startswith("file:"):
+        problems.append("DATABASE_URL must point to a file-backed database in production.")
+        return
+    db_path = Path(raw_path)
+    if not db_path.is_absolute():
+        problems.append("DATABASE_URL sqlite path must be absolute.")
+        return
+    if data_dir is None:
+        return  # DATA_DIR problems already reported; do not create directories on guesswork.
+    try:
+        db_path.resolve().relative_to(data_dir.resolve())
+    except ValueError:
+        problems.append(
+            "DATABASE_URL must live inside DATA_DIR so the database and the original "
+            "scientific files share one persistent volume."
+        )
+        return
+    if not _directory_is_writable(db_path.parent):
+        problems.append("DATABASE_URL sqlite directory is not writable.")
+
+
+def _check_single_instance(env: Mapping[str, str], problems: list[str]) -> None:
+    """SQLite plus a local disk means exactly one process may write."""
+    raw = env.get("WEB_CONCURRENCY", "").strip()
+    if raw:
+        try:
+            workers = int(raw)
+        except ValueError:
+            problems.append("WEB_CONCURRENCY must be an integer (use 1).")
             return
-        db_path = Path(raw_path)
-        if not db_path.is_absolute():
-            problems.append("DATABASE_URL sqlite path must be absolute.")
-        elif not _directory_is_writable(db_path.parent):
-            problems.append("DATABASE_URL sqlite directory is not writable.")
+        if workers != 1:
+            problems.append(
+                "WEB_CONCURRENCY must be 1: SQLite on a single persistent disk supports one "
+                "worker process."
+            )
 
 
 def _check_cors(env: Mapping[str, str], problems: list[str]) -> None:
@@ -156,6 +223,13 @@ def _check_cors(env: Mapping[str, str], problems: list[str]) -> None:
         problems.append("CORS_ORIGINS is not set; production requires an explicit origin list.")
     elif "*" in origins:
         problems.append("CORS_ORIGINS must not contain a wildcard in production.")
+    else:
+        for origin in origins:
+            if not origin.startswith(("https://", "http://")) or "/" in origin.split("://", 1)[1]:
+                problems.append(
+                    "CORS_ORIGINS entries must be bare origins like https://app.example.com."
+                )
+                break
 
 
 def validate_production_config(env: Optional[Mapping[str, str]] = None) -> list[str]:
@@ -165,6 +239,7 @@ def validate_production_config(env: Optional[Mapping[str, str]] = None) -> list[
     _check_jwt_secret(source, problems)
     _check_identity_database(source, problems)
     _check_data_directory(source, problems)
+    _check_single_instance(source, problems)
     _check_cors(source, problems)
     return problems
 

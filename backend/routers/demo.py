@@ -1,3 +1,5 @@
+import logging
+
 import bcrypt
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,6 +11,8 @@ from auth import verify_token
 from services.production_config import demo_bootstrap_enabled
 from services.demo_data import DEMO_EMAIL, DEMO_PASSWORD, DEMO_NAME
 from services.demo_loader import seed_demo_lab
+
+logger = logging.getLogger("elementx")
 
 router = APIRouter(prefix="/api/demo", tags=["demo"])
 
@@ -22,15 +26,16 @@ async def load_demo(payload: DemoLoadRequest = DemoLoadRequest(), user=Depends(v
     try:
         return await seed_demo_lab(user["userId"], force=payload.force)
     except Exception as e:
-        raise HTTPException(500, f"Demo load failed: {e}") from e
+        logger.exception("Demo load failed")
+        raise HTTPException(500, "Demo load failed.") from e
 
 
 @router.post("/bootstrap")
 async def bootstrap_demo_account():
     """Create or reset the shared demo login (no auth required). Works with or without MongoDB.
 
-    Disabled in production (404) unless ELEMENTX_ENABLE_DEMO is explicitly set, because it
-    creates a shared, publicly documented account.
+    Always disabled in production (404, no override): it creates or resets a shared,
+    publicly documented account.
     """
     if not demo_bootstrap_enabled():
         raise HTTPException(404, "Not found.")

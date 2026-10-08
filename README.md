@@ -1,5 +1,9 @@
 # ElementX
 
+> **Production note (Milestone 5B):** the shared demo login described below is development/legacy only. The v1
+> production deployment disables it. See [`docs/PRODUCTION.md`](docs/PRODUCTION.md) and
+> [`docs/BACKUP_AND_RECOVERY.md`](docs/BACKUP_AND_RECOVERY.md).
+
 Web app I built to keep track of rare-earth-free magnet samples — mostly MnAl and MnBi work. Upload XRD and VSM files, run stoichiometry, flag τ-MnAl from diffraction peaks, and keep notes on what to try next.
 
 FastAPI + React. MongoDB if you have it; otherwise it runs fine in local memory mode.
