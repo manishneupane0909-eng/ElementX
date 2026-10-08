@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import DemoLanding from './demo/DemoLanding'
+import DemoMagnetometry from './demo/DemoMagnetometry'
+import { DEMO_MODE } from './demo/demoMode'
 import { useAuth } from './auth/useAuth'
 import AuthScreen from './components/AuthScreen'
 import AppShell from './components/shell/AppShell'
@@ -51,20 +54,23 @@ const NAV_ITEMS: (NavItem & { id: AppMode })[] = [
   { id: 'copilot', label: 'Physics Copilot', icon: <CopilotIcon /> },
 ]
 
-function Workspace() {
+function Workspace({ onExitDemo }: { onExitDemo?: () => void }) {
   const { user, signOut } = useAuth()
-  const [mode, setMode] = useState<AppMode>('samples')
+  // The demo opens on the real measurement so plots are visible immediately.
+  const [mode, setMode] = useState<AppMode>(DEMO_MODE ? 'magnetometry' : 'samples')
 
   return (
     <AppShell
       items={NAV_ITEMS}
       activeId={mode}
       onSelect={(id) => setMode(id as AppMode)}
-      user={user}
+      user={DEMO_MODE ? null : user}
       onSignOut={signOut}
+      demo={DEMO_MODE}
+      onExitDemo={onExitDemo}
     >
       {mode === 'samples' && <SampleList />}
-      {mode === 'magnetometry' && <MagnetometryUpload />}
+      {mode === 'magnetometry' && (DEMO_MODE ? <DemoMagnetometry /> : <MagnetometryUpload />)}
       {mode === 'analytics' && <Search elements={ELEMENTS} normalizeSymbol={normalizeSymbol} />}
       {mode === 'copilot' && <PhysicsCopilot />}
     </AppShell>
@@ -73,6 +79,26 @@ function Workspace() {
 
 function App() {
   const { status, user } = useAuth()
+  // `#explore` links straight into the demo workspace.
+  const [entered, setEntered] = useState(() => window.location.hash === '#explore')
+
+  if (DEMO_MODE) {
+    return entered ? (
+      <Workspace
+        onExitDemo={() => {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search)
+          setEntered(false)
+        }}
+      />
+    ) : (
+      <DemoLanding
+        onEnter={() => {
+          window.history.replaceState(null, '', '#explore')
+          setEntered(true)
+        }}
+      />
+    )
+  }
 
   if (status === 'checking') {
     return (

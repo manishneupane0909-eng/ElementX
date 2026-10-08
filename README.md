@@ -1,106 +1,181 @@
 # ElementX
 
-> **Production note (Milestone 5B):** the shared demo login described below is development/legacy only. The v1
-> production deployment disables it. See [`docs/PRODUCTION.md`](docs/PRODUCTION.md) and
-> [`docs/BACKUP_AND_RECOVERY.md`](docs/BACKUP_AND_RECOVERY.md).
+ElementX is a research tool for **magnetic-materials** data. It reads Quantum Design VSM magnetometry
+files and XRD patterns, runs a documented analysis pipeline on a backend, stores each result with its
+provenance, and lets you explore the stored values in interactive plots.
 
-Web app I built to keep track of rare-earth-free magnet samples — mostly MnAl and MnBi work. Upload XRD and VSM files, run stoichiometry, flag τ-MnAl from diffraction peaks, and keep notes on what to try next.
+> **Live demo:** _URL to be added after the static demo is deployed_ <!-- DEMO_URL -->
+> A read-only **portfolio demo** (no sign-in, no backend) with a real Fe2CoGe VSM measurement.
+> See [`docs/DEMO.md`](docs/DEMO.md).
 
-FastAPI + React. MongoDB if you have it; otherwise it runs fine in local memory mode.
-
-**Live demo:** [elementx-frontend.onrender.com](https://elementx-frontend.onrender.com)  
-**API:** [elementx-backend.onrender.com](https://elementx-backend.onrender.com)  
-**Portfolio:** [mneupane.com](https://mneupane.com)
-
-## Try the demo
-
-**Online:** open the [live demo](https://elementx-frontend.onrender.com), click **Try live demo**, or log in with `demo@elementx.dev` / `demo2026`.
-
-**Local:**
-
-1. Start backend and frontend (see below)
-2. Open http://localhost:3000
-3. Click **Try live demo** — three example MnAl samples with synthetic curves
-4. Login: `demo@elementx.dev` / `demo2026`
-
-No database required for the demo. Add `MONGODB_URI` to `backend/.env` when you want data to stick around.
-
-## Setup
-
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# backend/.env
-# MONGODB_URI=...          # optional
-# JWT_SECRET=...
-# GEMINI_API_KEY=...       # optional — for chat + brief text generation
-
-uvicorn main:app --reload
-```
-
-```bash
-cd frontend
-npm install
-npm start
-```
-
-API docs: http://localhost:8000/docs
+![ElementX portfolio demo: landing page](docs/screenshots/landing-dark.png)
 
 ## Features
 
-- Sample database (create, edit, link XRD/VSM uploads)
-- τ-MnAl phase check from peak positions
-- Stoichiometry calculator
-- Bragg lattice estimate, Scherrer grain size, BHmax from hysteresis
-- Dopant ranker — rules-based, uses outcome labels you set on samples
-- Lab chat tab — ask questions about your data, upload files inline
-- Synthesis note parser (structured JSON from notebook text)
-- Experiment brief export (markdown)
+- **Magnetometry** (Quantum Design `.dat`): file segmentation into M-H loops and M-T sweeps, hysteresis
+  values (Hc, Mr), high-field slope diagnostics, mass-normalised values with explicit mass provenance.
+- **Interactive plots**: zoom by dragging, explicit axis ranges, loop switching by temperature, enlarge,
+  and export of the measured points (CSV) and the figure (SVG).
+- **XRD** (two-column text): measured pattern and *candidate intensity maxima* only (see
+  [scientific notes](#scientific-correctness-notes)).
+- **Samples**: group saved experiments per sample; stored analyses are re-opened without re-running the
+  pipeline.
+- **Materials Explorer**: element masses and Materials Project lookups by formula.
+- **Physics Copilot**: answers grounded in your stored records. With a Gemini key it can write prose;
+  without one it prints a labelled readout of the stored values. The two are always labelled differently.
+- Dark and light themes, keyboard-accessible controls, responsive down to phone width.
 
-## API (samples)
+| Magnetometry (dark) | M-H loop (light) |
+|---|---|
+| ![Magnetometry view](docs/screenshots/magnetometry-dark.png) | ![M-H loop](docs/screenshots/mh-loop-light.png) |
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/samples` | Create sample |
-| GET | `/api/samples` | List your samples |
-| GET | `/api/samples/{id}` | Sample + linked XRD/VSM |
-| PATCH | `/api/samples/{id}` | Update synthesis, status, outcome |
-| DELETE | `/api/samples/{id}` | Delete sample |
-| POST | `/api/samples/{id}/recommend` | Rank next alloy / dopant to try |
-| POST | `/api/samples/{id}/experiment-brief` | Markdown brief for one sample |
+| Synthetic XRD, labelled as such (light) | Stored-record Copilot readout (dark) |
+|---|---|
+| ![Synthetic XRD](docs/screenshots/xrd-synthetic-light.png) | ![Copilot readout](docs/screenshots/copilot-readout-dark.png) |
 
-## API (analysis helpers)
+<img src="docs/screenshots/mobile-dark.png" alt="Phone layout" width="240">
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/ai/status` | Text generation available or not |
-| POST | `/api/ai/parse-synthesis` | Notebook text → JSON |
-| POST | `/api/ai/copilot` | Q&A over your sample list |
-| POST | `/api/agent/chat` | Chat with calculators + ranker wired in |
+## Portfolio demo
 
-Set `outcomeLabel` to `success`, `partial`, or `fail` on a sample (PATCH) so the ranker has something to learn from.
+The demo is the same frontend with `VITE_DEMO_MODE=true`. It is **static**: the browser loads JSON
+snapshots of what the real backend returned for two bundled files, and never contacts a server.
+
+- **Real:** Fe2CoGe, annealed 900 °C for 48 h: ten M-H loops and one M-T sweep (VersaLab VSM).
+- **Synthetic:** a hand-written XRD test pattern, labelled *not a laboratory measurement* wherever it
+  appears.
+- **Reference data:** a few Materials Project entries (CC BY 4.0), with the retrieval date shown.
+- **Copilot:** recorded stored-record readouts. No language model runs.
+
+**Limitations.** Example records are read-only. Sign-in, registration, creating or saving samples, file
+uploads, live Gemini and live Materials Project queries are switched off and their controls are not
+shown. Nothing is sent to a server; no API key or database connection is shipped.
+
+Run it locally (no backend needed):
+
+```bash
+cd frontend/elementx-frontend
+npm install
+npm run dev:demo          # http://localhost:5173/
+```
+
+## Architecture
+
+```
+                       full application                                   portfolio demo (static)
+
+Browser (React 19, Vite)                                          Browser (same frontend, demo mode)
+   │  Bearer JWT                                                     │  fetch static JSON only
+   ▼                                                                 ▼
+FastAPI backend ── services/: parsers, magnetometry_analysis,    public-demo/demo/*.json
+   │               xrd_analysis, mass_normalization, ...             ▲
+   ├── SQLite + original files  (research records)                   │ generated by
+   └── MongoDB or local store   (accounts)                           │ backend/scripts/build_demo_data.py
+                                                                     └── drives the real FastAPI routes
+```
+
+- **The backend does the science; the frontend only displays it.** The browser performs no physics
+  and never recomputes a stored value.
+- Experiments are stored with their original file and the full analysis JSON, tagged with the pipeline
+  version. Re-opening one shows the stored result.
+- Demo snapshots are produced by running the real routes against a throw-away database. They are not
+  hand-written. See [`docs/DEMO.md`](docs/DEMO.md) for provenance and redaction.
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, TypeScript, Vite 7, Recharts |
+| Backend | FastAPI, Pydantic, SQLAlchemy (SQLite), NumPy, SciPy |
+| Materials data | `mp-api` / Materials Project, `pymatgen` (CIF) |
+| Accounts | MongoDB, or a local store for development; JWT bearer auth |
+| Optional AI | Gemini for Copilot prose (off by default) |
+| Hosting | Render (see [`docs/PRODUCTION.md`](docs/PRODUCTION.md); demo: `render.demo.yaml`) |
+
+## Local setup (full application)
+
+```bash
+# backend
+cd backend
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt -c constraints.txt
+# optional, in a git-ignored .env at the repo root or backend/: MP_API_KEY, GEMINI_API_KEY, MONGODB_URI, JWT_SECRET
+uvicorn main:app --reload                # http://localhost:8000/docs
+
+# frontend (separate terminal)
+cd frontend/elementx-frontend
+npm install
+npm run dev                              # http://localhost:5173/ (proxies /api to :8000)
+```
+
+Without MongoDB the backend runs in a local development mode. Production configuration, persistence
+and backups are described in [`docs/PRODUCTION.md`](docs/PRODUCTION.md) and
+[`docs/BACKUP_AND_RECOVERY.md`](docs/BACKUP_AND_RECOVERY.md). Never commit `.env`; keys are read on the
+server and are not exposed to the browser.
+
+## Testing
+
+```bash
+# backend (includes the demo-snapshot reproducibility check)
+cd backend && python -m unittest discover -s tests -t .
+
+# demo snapshots: re-run the real pipeline and compare, writing nothing
+cd backend && python -m scripts.build_demo_data --check
+
+# frontend
+cd frontend/elementx-frontend
+npx tsc -b && npm run lint
+npm run check:contrast     # WCAG contrast for every text/background pair in both themes
+npm run check:copilot      # stored-record parser (113 checks)
+npm run check:demo         # snapshot hashes, redaction, synthetic labelling
+npm run build:demo         # demo build + bundle credential scan
+VITE_API_URL=https://api.example.com npm run build:production   # production build + guards
+```
+
+## Scientific-correctness notes
+
+- **The largest measured |M| is never called saturation magnetization.** It is reported as "largest
+  measured moment", with a separate high-field *evidence* label that states the quality of the
+  high-field data, not a determination that the sample is saturated.
+- **No Curie temperature** is calculated. M-T segments are plotted for identification only.
+- **XRD maxima are candidate intensity maxima only**: local maxima from the peak finder, not assigned
+  to a phase, hkl, lattice parameter or crystallite size.
+- **Mass normalisation is explicit.** The mass used, where it came from (instrument header, filename
+  hint, or user confirmation) and whether sources disagree are stored with the result. Normalised values
+  are only produced when a mass is resolved.
+- **Provenance travels with the data.** Records carry the analysis version; demo records also carry the
+  SHA-256 of the source file and a list of any modifications to the public copy.
+- **Synthetic data is labelled.** The demo XRD pattern is a software test fixture and is marked as such
+  in the sample name, the notes, the provenance panel and the experiment header.
+- The Copilot is told only the stored values. A stored-record readout is shown as a readout; text from a
+  language model is shown as model output and is not parsed as scientific data.
 
 ## Project layout
 
 ```
 backend/
-  main.py              FastAPI app
-  routers/             samples, demo, analysis routes
-  services/            parsers, phase check, ranker, calculators
-frontend/
-  src/App.js           main UI
-  src/components/Plots.js   XRD + M-H charts
+  main.py                      FastAPI app (legacy routes plus research API)
+  routers/research*.py         samples, experiments, Physics Copilot
+  services/                    parsers, analysis pipelines, storage, Materials client
+  scripts/build_demo_data.py   generates and verifies the demo snapshots
+  tests/                       unit and API tests (fixtures in tests/fixtures)
+frontend/elementx-frontend/
+  src/components/              Samples, Magnetometry, XRD, Materials, Copilot, shell
+  src/demo/                    demo-only code (landing, provenance, snapshot loader)
+  public-demo/demo/            static demo snapshots (demo builds only)
+docs/                          production, backup and demo guides, screenshots
+render.yaml                    production blueprint
+render.demo.yaml               static-site blueprint for the demo
 ```
 
-## Still on my list
+The earlier MnAl-oriented sample, stoichiometry and dopant-ranking endpoints remain in the backend but are
+not part of the research workflow described above.
 
-- [ ] Import real MnAl C-doping history from the lab
-- [ ] NOVAMAG reference lookup
-- [ ] Better phase ID than peak matching
+## Data and licences
+
+Materials Project data are licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The example
+magnetometry measurement was approved by its owner for the public demo; the demo publishes only derived
+results, with instrument serial numbers removed (see [`docs/DEMO.md`](docs/DEMO.md)).
 
 ## Author
 
-Manish Neupane — SDSU (CS + Physics)
+Manish Neupane, SDSU (CS + Physics). Portfolio: [mneupane.com](https://mneupane.com)

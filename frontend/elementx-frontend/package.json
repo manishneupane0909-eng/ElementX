@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:demo": "vite --mode demo",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "build:demo": "node scripts/check-demo-data.mjs && tsc -b && vite build --mode demo && node scripts/check-bundle.mjs && node scripts/check-demo-data.mjs --dist dist",
+    "check:demo": "node scripts/check-demo-data.mjs",
     "build:production": "node scripts/check-env.mjs && npm run build && node scripts/check-bundle.mjs",
     "check:bundle": "node scripts/check-bundle.mjs",
     "check:copilot": "node scripts/check-stored-record.mjs",

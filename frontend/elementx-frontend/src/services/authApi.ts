@@ -1,3 +1,4 @@
+import { DEMO_MODE } from '../demo/demoMode'
 import { API_BASE_URL, saveSession, type AuthUser } from './apiClient'
 
 export class AuthError extends Error {
@@ -40,6 +41,7 @@ async function submit(
   body: Record<string, string>,
   fallback: string,
 ): Promise<AuthResponse> {
+  if (DEMO_MODE) throw new AuthError(0, 'Sign-in and registration are disabled in the portfolio demo.')
   let response: Response
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {

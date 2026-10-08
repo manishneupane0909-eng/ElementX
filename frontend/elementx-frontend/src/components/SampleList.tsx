@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import MagnetometryUpload from './MagnetometryUpload'
 import XrdUpload from './XrdUpload'
+import { DEMO_MODE } from '../demo/demoMode'
+import DemoProvenance, { DataKindTag } from '../demo/DemoProvenance'
 import Button from './ui/Button'
 import Notice from './ui/Notice'
 import Section from './ui/Section'
@@ -229,18 +231,27 @@ export default function SampleList() {
               {EXPERIMENT_TYPE_LABEL[openedSummary.experiment_type] ??
                 openedSummary.experiment_type}
             </span>
+            {openedSaved.demo && (
+              <DataKindTag kind={openedSaved.demo.data_kind} label={openedSaved.demo.label} />
+            )}
           </div>
           <p className="meta-line">
             <span>
               Sample <strong>{selected.name}</strong>
             </span>
-            <span>Uploaded {formatDateTime(openedSummary.uploaded_at)}</span>
+            <span>
+              {DEMO_MODE
+                ? `Record created ${formatDate(openedSummary.uploaded_at)}`
+                : `Uploaded ${formatDateTime(openedSummary.uploaded_at)}`}
+            </span>
             <span>Analysis version {openedSummary.analysis_version}</span>
             <span>Stored analysis; the scientific pipeline is not re-run.</span>
           </p>
         </header>
 
         {error && <Notice kind="error">{error}</Notice>}
+
+        <DemoProvenance provenance={openedSaved.demo} />
 
         {openedSaved.experiment_type === 'xrd' ? (
           <XrdUpload readOnly initialResult={openedSaved.analysis_json} />
@@ -267,13 +278,16 @@ export default function SampleList() {
         <header className="entity-head">
           <div className="entity-head__title">
             <h2>{selected.name}</h2>
-            {selected.formula && (
-              <span className="entity-head__formula">{selected.formula}</span>
+            {selected.formula && <span className="entity-head__formula">{selected.formula}</span>}
+            {selected.demo && (
+              <DataKindTag kind={selected.demo.data_kind} label={selected.demo.label} />
             )}
           </div>
           {selected.notes && <p className="entity-head__notes">{selected.notes}</p>}
           <p className="meta-line">
-            <span>Created {formatDate(selected.created_at)}</span>
+            <span>
+              {DEMO_MODE ? 'Record created' : 'Created'} {formatDate(selected.created_at)}
+            </span>
             <span>{countLabel(selected.experiments.length)}</span>
           </p>
         </header>
@@ -283,14 +297,16 @@ export default function SampleList() {
         <Section
           title="Experiments"
           actions={
-            <Button
-              variant={adding ? 'secondary' : 'primary'}
-              aria-expanded={adding}
-              aria-controls="add-experiment"
-              onClick={() => setAdding((open) => !open)}
-            >
-              {adding ? 'Cancel' : 'Add experiment'}
-            </Button>
+            DEMO_MODE ? undefined : (
+              <Button
+                variant={adding ? 'secondary' : 'primary'}
+                aria-expanded={adding}
+                aria-controls="add-experiment"
+                onClick={() => setAdding((open) => !open)}
+              >
+                {adding ? 'Cancel' : 'Add experiment'}
+              </Button>
+            )
           }
         >
           {adding && (
@@ -336,8 +352,9 @@ export default function SampleList() {
           {selected.experiments.length === 0 ? (
             !adding && (
               <p className="empty-hint">
-                No experiments saved for this sample. Use Add experiment to upload a Quantum
-                Design magnetometry file or an XRD pattern.
+                {DEMO_MODE
+                  ? 'No experiments are stored for this example sample.'
+                  : 'No experiments saved for this sample. Use Add experiment to upload a Quantum Design magnetometry file or an XRD pattern.'}
               </p>
             )
           ) : (
@@ -348,7 +365,7 @@ export default function SampleList() {
                   <tr>
                     <th scope="col">Type</th>
                     <th scope="col">File</th>
-                    <th scope="col">Uploaded</th>
+                    <th scope="col">{DEMO_MODE ? 'Record created' : 'Uploaded'}</th>
                     <th scope="col" className="hide-narrow">
                       Analysis version
                     </th>
@@ -362,6 +379,19 @@ export default function SampleList() {
                           {EXPERIMENT_TYPE_LABEL[experiment.experiment_type] ??
                             experiment.experiment_type}
                         </span>
+                        {experiment.demo && (
+                          <>
+                            {' '}
+                            <DataKindTag
+                              kind={experiment.demo.data_kind}
+                              label={
+                                experiment.demo.data_kind === 'synthetic'
+                                  ? 'Synthetic'
+                                  : 'Real measurement'
+                              }
+                            />
+                          </>
+                        )}
                       </td>
                       <td>
                         <button
@@ -372,7 +402,11 @@ export default function SampleList() {
                           {experiment.original_filename}
                         </button>
                       </td>
-                      <td className="cell-muted">{formatDateTime(experiment.uploaded_at)}</td>
+                      <td className="cell-muted">
+                        {DEMO_MODE
+                          ? formatDate(experiment.uploaded_at)
+                          : formatDateTime(experiment.uploaded_at)}
+                      </td>
                       <td className="cell-muted hide-narrow">{experiment.analysis_version}</td>
                     </tr>
                   ))}
@@ -391,18 +425,21 @@ export default function SampleList() {
     <div className="page">
       <div className="page-bar">
         <p className="page-intro">
-          Samples group your saved magnetometry and XRD experiments. Open a sample to add or
-          review them.
+          {DEMO_MODE
+            ? 'Two example samples: a real Fe2CoGe magnetometry measurement and a synthetic XRD test pattern. Open one to explore its stored analysis.'
+            : 'Samples group your saved magnetometry and XRD experiments. Open a sample to add or review them.'}
         </p>
-        <Button
-          ref={newSampleButton}
-          variant={creating ? 'secondary' : 'primary'}
-          aria-expanded={creating}
-          aria-controls="new-sample-form"
-          onClick={() => (creating ? closeCreateForm() : setCreating(true))}
-        >
-          {creating ? 'Cancel' : 'New sample'}
-        </Button>
+        {!DEMO_MODE && (
+          <Button
+            ref={newSampleButton}
+            variant={creating ? 'secondary' : 'primary'}
+            aria-expanded={creating}
+            aria-controls="new-sample-form"
+            onClick={() => (creating ? closeCreateForm() : setCreating(true))}
+          >
+            {creating ? 'Cancel' : 'New sample'}
+          </Button>
+        )}
       </div>
 
       {creating && (
@@ -448,56 +485,69 @@ export default function SampleList() {
       {error && <Notice kind="error">{error}</Notice>}
       {loading && samples.length === 0 && <Notice kind="loading">Loading samples…</Notice>}
 
-      {samples.length === 0 && !loading ? (
-        !creating && (
-          <p className="empty-hint">
-            No samples yet. Choose New sample, then upload a magnetometry or XRD file to keep
-            its analysis with the sample.
-          </p>
-        )
-      ) : (
-        samples.length > 0 && (
-          <div className="table-wrap">
-            <table className="data-table">
-              <caption className="sr-only">Your samples</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Sample</th>
-                  <th scope="col">Formula</th>
-                  <th scope="col" className="num">
-                    Experiments
-                  </th>
-                  <th scope="col" className="hide-narrow">
-                    Notes
-                  </th>
-                  <th scope="col" className="hide-narrow">
-                    Updated
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {samples.map((sample) => (
-                  <tr key={sample.id}>
-                    <td>
-                      <button
-                        type="button"
-                        className="row-link"
-                        onClick={() => void handleOpenSample(sample.id)}
-                      >
-                        {sample.name}
-                      </button>
-                    </td>
-                    <td className="mono">{sample.formula ?? '—'}</td>
-                    <td className="num">{sample.experiment_count ?? 0}</td>
-                    <td className="cell-muted cell-clip hide-narrow">{sample.notes ?? ''}</td>
-                    <td className="cell-muted hide-narrow">{formatDate(sample.updated_at)}</td>
+      {samples.length === 0 && !loading
+        ? !creating && (
+            <p className="empty-hint">
+              No samples yet. Choose New sample, then upload a magnetometry or XRD file to keep its
+              analysis with the sample.
+            </p>
+          )
+        : samples.length > 0 && (
+            <div className="table-wrap">
+              <table className="data-table">
+                <caption className="sr-only">
+                  {DEMO_MODE ? 'Example samples' : 'Your samples'}
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Sample</th>
+                    <th scope="col">Formula</th>
+                    <th scope="col" className="num">
+                      Experiments
+                    </th>
+                    <th scope="col" className="hide-narrow">
+                      Notes
+                    </th>
+                    <th scope="col" className="hide-narrow">
+                      {DEMO_MODE ? 'Record date' : 'Updated'}
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )
-      )}
+                </thead>
+                <tbody>
+                  {samples.map((sample) => (
+                    <tr key={sample.id}>
+                      <td>
+                        <button
+                          type="button"
+                          className="row-link"
+                          onClick={() => void handleOpenSample(sample.id)}
+                        >
+                          {sample.name}
+                        </button>
+                        {sample.demo && (
+                          <>
+                            {' '}
+                            <DataKindTag
+                              kind={sample.demo.data_kind}
+                              label={
+                                sample.demo.data_kind === 'synthetic'
+                                  ? 'Synthetic'
+                                  : 'Real measurement'
+                              }
+                            />
+                          </>
+                        )}
+                      </td>
+                      <td className="mono">{sample.formula ?? '—'}</td>
+                      <td className="num">{sample.experiment_count ?? 0}</td>
+                      <td className="cell-muted cell-clip hide-narrow">{sample.notes ?? ''}</td>
+                      <td className="cell-muted hide-narrow">{formatDate(sample.updated_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
     </div>
   )
 }

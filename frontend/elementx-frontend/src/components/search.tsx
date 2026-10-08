@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   queryFormula,
   parseCif,
@@ -6,11 +6,14 @@ import {
   type FormulaQueryResult,
   type CifParseResult,
 } from '../services/magnetApi'
+import { DEMO_MODE } from '../demo/demoMode'
+import { getDemoMaterials, type DemoMaterials } from '../demo/demoData'
 import Button from './ui/Button'
 import DataList, { ResultRow } from './ui/DataList'
 import FileUploadBar from './ui/FileUploadBar'
 import Notice from './ui/Notice'
 import Section from './ui/Section'
+import SelectField from './ui/SelectField'
 import TextField from './ui/TextField'
 
 interface SearchProps {
@@ -49,6 +52,24 @@ export default function Search({ elements, normalizeSymbol }: SearchProps) {
 
   const [formulaResult, setFormulaResult] = useState<FormulaQueryResult | null>(null)
   const [cifResult, setCifResult] = useState<CifParseResult | null>(null)
+
+  const [demoMaterials, setDemoMaterials] = useState<DemoMaterials | null>(null)
+
+  useEffect(() => {
+    if (!DEMO_MODE) return
+    let cancelled = false
+    getDemoMaterials()
+      .then((materials) => {
+        if (!cancelled) setDemoMaterials(materials)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled)
+          setFormulaError(failureMessage(err, 'The example materials could not be loaded.'))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const normalizedElement = normalizeSymbol(elementQuery)
   const simpleElementMass = normalizedElement ? elements[normalizedElement] : undefined
@@ -111,8 +132,9 @@ export default function Search({ elements, normalizeSymbol }: SearchProps) {
   return (
     <div className="page">
       <p className="page-intro">
-        Look up element masses, query Materials Project by formula, or analyze a local CIF
-        structure file.
+        {DEMO_MODE
+          ? 'Look up element masses and browse curated Materials Project reference entries for example magnetic materials.'
+          : 'Look up element masses, query Materials Project by formula, or analyze a local CIF structure file.'}
       </p>
 
       <Section
@@ -152,7 +174,11 @@ export default function Search({ elements, normalizeSymbol }: SearchProps) {
 
       <Section
         title="Materials Project search"
-        description="Queries Materials Project through the ElementX backend by chemical formula."
+        description={
+          DEMO_MODE
+            ? 'Curated entries retrieved from Materials Project in advance. Choose one of the example formulas.'
+            : 'Queries Materials Project through the ElementX backend by chemical formula.'
+        }
       >
         <form
           className="control-row"
@@ -162,23 +188,62 @@ export default function Search({ elements, normalizeSymbol }: SearchProps) {
           }}
         >
           <div className="form-field form-field--md">
-            <TextField
-              label="Formula"
-              type="text"
-              placeholder="e.g. Nd2Fe14B"
-              autoComplete="off"
-              spellCheck={false}
-              value={formulaQuery}
-              onChange={(event) => setFormulaQuery(event.target.value)}
-            />
+            {DEMO_MODE ? (
+              <SelectField
+                label="Example formula"
+                value={formulaQuery}
+                onChange={(event) => setFormulaQuery(event.target.value)}
+                disabled={!demoMaterials}
+              >
+                {(demoMaterials?.formulas ?? [formulaQuery]).map((formula) => (
+                  <option key={formula} value={formula}>
+                    {formula}
+                  </option>
+                ))}
+              </SelectField>
+            ) : (
+              <TextField
+                label="Formula"
+                type="text"
+                placeholder="e.g. Nd2Fe14B"
+                autoComplete="off"
+                spellCheck={false}
+                value={formulaQuery}
+                onChange={(event) => setFormulaQuery(event.target.value)}
+              />
+            )}
           </div>
-          <Button type="submit" variant="primary" disabled={formulaLoading}>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={formulaLoading || (DEMO_MODE && !demoMaterials)}
+          >
             {formulaLoading ? 'Querying…' : 'Query formula'}
           </Button>
         </form>
 
         {formulaError && <Notice kind="error">{formulaError}</Notice>}
-        {formulaInfo && !formulaError && <p className="note" role="status">{formulaInfo}</p>}
+        {formulaInfo && !formulaError && (
+          <p className="note" role="status">
+            {formulaInfo}
+          </p>
+        )}
+
+        {DEMO_MODE && demoMaterials && (
+          <p className="note">
+            Data:{' '}
+            <a href={demoMaterials.source.url} target="_blank" rel="noopener noreferrer">
+              {demoMaterials.source.name}
+            </a>
+            , licensed{' '}
+            <a href={demoMaterials.source.license_url} target="_blank" rel="noopener noreferrer">
+              {demoMaterials.source.license}
+            </a>
+            . Retrieved {demoMaterials.source.retrieved}. {demoMaterials.source.note} These are
+            computed reference values for the listed formula, not measurements of the example
+            samples.
+          </p>
+        )}
 
         {formulaResult && (
           <div className="result-block">
@@ -193,9 +258,7 @@ export default function Search({ elements, normalizeSymbol }: SearchProps) {
                 <ResultRow
                   label="Magnetic ordering"
                   value={
-                    formulaResult.magnetic_ordering ??
-                    formulaResult.magnetic_ordering_code ??
-                    '—'
+                    formulaResult.magnetic_ordering ?? formulaResult.magnetic_ordering_code ?? '—'
                   }
                 />
                 <ResultRow
@@ -220,79 +283,85 @@ export default function Search({ elements, normalizeSymbol }: SearchProps) {
         )}
       </Section>
 
-      <Section
-        title="CIF analysis"
-        description="Parses a local .cif file on the backend for lattice parameters, symmetry and theoretical density."
-      >
-        <div className="upload-block">
-          <FileUploadBar
-            label="CIF structure file"
-            accept=".cif,application/cif,chemical/x-cif"
-            file={cifFile}
-            onFileChange={(file) => void handleCifUpload(file)}
-            chooseLabel={cifLoading ? 'Parsing CIF…' : 'Choose CIF file'}
-            busy={cifLoading}
-            emptyText="No file selected. The file is parsed as soon as you choose it."
-          />
-        </div>
-
-        {cifError && <Notice kind="error">{cifError}</Notice>}
-        {cifInfo && !cifError && <p className="note" role="status">{cifInfo}</p>}
-
-        {cifResult && (
-          <div className="result-block">
-            <Section level={3} title="Lattice & density">
-              <DataList label="CIF structure summary" columns>
-                <ResultRow label="Formula" value={cifResult.formula} />
-                <ResultRow label="Crystal system" value={cifResult.crystal_system} />
-                <ResultRow
-                  label="Space group"
-                  value={
-                    cifResult.space_group_symbol
-                      ? `${cifResult.space_group_symbol} (${cifResult.space_group_number ?? '—'})`
-                      : '—'
-                  }
-                />
-                <ResultRow
-                  label="Unit-cell volume"
-                  value={`${formatNumber(cifResult.volume, 3)} Å³`}
-                />
-                <ResultRow
-                  label="Theoretical density"
-                  value={`${formatNumber(cifResult.density, 4)} g/cm³`}
-                />
-                <ResultRow label="Number of sites" value={String(cifResult.num_sites)} />
-              </DataList>
-              <dl className="lattice-line" aria-label="Lattice parameters">
-                <div>
-                  <dt>a (Å)</dt>
-                  <dd>{formatNumber(cifResult.lattice.a, 4)}</dd>
-                </div>
-                <div>
-                  <dt>b (Å)</dt>
-                  <dd>{formatNumber(cifResult.lattice.b, 4)}</dd>
-                </div>
-                <div>
-                  <dt>c (Å)</dt>
-                  <dd>{formatNumber(cifResult.lattice.c, 4)}</dd>
-                </div>
-                <div>
-                  <dt>α (°)</dt>
-                  <dd>{formatNumber(cifResult.lattice.alpha, 3)}</dd>
-                </div>
-                <div>
-                  <dt>β (°)</dt>
-                  <dd>{formatNumber(cifResult.lattice.beta, 3)}</dd>
-                </div>
-                <div>
-                  <dt>γ (°)</dt>
-                  <dd>{formatNumber(cifResult.lattice.gamma, 3)}</dd>
-                </div>
-              </dl>
-            </Section>
+      {!DEMO_MODE && (
+        <Section
+          title="CIF analysis"
+          description="Parses a local .cif file on the backend for lattice parameters, symmetry and theoretical density."
+        >
+          <div className="upload-block">
+            <FileUploadBar
+              label="CIF structure file"
+              accept=".cif,application/cif,chemical/x-cif"
+              file={cifFile}
+              onFileChange={(file) => void handleCifUpload(file)}
+              chooseLabel={cifLoading ? 'Parsing CIF…' : 'Choose CIF file'}
+              busy={cifLoading}
+              emptyText="No file selected. The file is parsed as soon as you choose it."
+            />
           </div>
-        )}
-      </Section>
+
+          {cifError && <Notice kind="error">{cifError}</Notice>}
+          {cifInfo && !cifError && (
+            <p className="note" role="status">
+              {cifInfo}
+            </p>
+          )}
+
+          {cifResult && (
+            <div className="result-block">
+              <Section level={3} title="Lattice & density">
+                <DataList label="CIF structure summary" columns>
+                  <ResultRow label="Formula" value={cifResult.formula} />
+                  <ResultRow label="Crystal system" value={cifResult.crystal_system} />
+                  <ResultRow
+                    label="Space group"
+                    value={
+                      cifResult.space_group_symbol
+                        ? `${cifResult.space_group_symbol} (${cifResult.space_group_number ?? '—'})`
+                        : '—'
+                    }
+                  />
+                  <ResultRow
+                    label="Unit-cell volume"
+                    value={`${formatNumber(cifResult.volume, 3)} Å³`}
+                  />
+                  <ResultRow
+                    label="Theoretical density"
+                    value={`${formatNumber(cifResult.density, 4)} g/cm³`}
+                  />
+                  <ResultRow label="Number of sites" value={String(cifResult.num_sites)} />
+                </DataList>
+                <dl className="lattice-line" aria-label="Lattice parameters">
+                  <div>
+                    <dt>a (Å)</dt>
+                    <dd>{formatNumber(cifResult.lattice.a, 4)}</dd>
+                  </div>
+                  <div>
+                    <dt>b (Å)</dt>
+                    <dd>{formatNumber(cifResult.lattice.b, 4)}</dd>
+                  </div>
+                  <div>
+                    <dt>c (Å)</dt>
+                    <dd>{formatNumber(cifResult.lattice.c, 4)}</dd>
+                  </div>
+                  <div>
+                    <dt>α (°)</dt>
+                    <dd>{formatNumber(cifResult.lattice.alpha, 3)}</dd>
+                  </div>
+                  <div>
+                    <dt>β (°)</dt>
+                    <dd>{formatNumber(cifResult.lattice.beta, 3)}</dd>
+                  </div>
+                  <div>
+                    <dt>γ (°)</dt>
+                    <dd>{formatNumber(cifResult.lattice.gamma, 3)}</dd>
+                  </div>
+                </dl>
+              </Section>
+            </div>
+          )}
+        </Section>
+      )}
     </div>
   )
 }

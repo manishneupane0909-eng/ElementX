@@ -6,6 +6,8 @@
  * Identity is never sent by the client; the server derives it from the verified token.
  */
 
+import { DEMO_MODE, DemoDisabledError } from '../demo/demoMode'
+
 export const API_BASE_URL =
   import.meta.env.VITE_API_URL?.replace(/\/$/, '') ?? ''
 
@@ -77,6 +79,8 @@ export function isTokenExpired(token: string, now: number = Date.now()): boolean
  * notifies the app so the user is returned to the login screen.
  */
 export async function authFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  // Failsafe: the portfolio demo never talks to a backend, so a stray call fails loudly.
+  if (DEMO_MODE) throw new DemoDisabledError('Contacting a server')
   const token = getToken()
   const headers = new Headers(init.headers)
   if (token) {

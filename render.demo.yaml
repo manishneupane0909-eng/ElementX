@@ -1,0 +1,36 @@
+# ElementX portfolio demo: Render STATIC SITE blueprint (separate from render.yaml).
+#
+#   * This file is NOT the production blueprint. It defines one static site with new names, so
+#     applying it cannot touch the existing elementx-frontend / elementx-backend services.
+#   * A static site needs no database, disk, API keys or environment variables. The demo is
+#     built with `vite --mode demo`, which reads frontend/elementx-frontend/.env.demo
+#     (VITE_DEMO_MODE=true) and bundles the pre-generated snapshots in public-demo/demo/.
+#   * Nothing here deploys by itself: create/sync it manually from the Render dashboard, choosing
+#     the branch you intend to publish. See docs/DEMO.md.
+#   * The Content-Security-Policy hash must match the inline theme script in index.html.
+#     `npm run build:demo` fails if it does not (scripts/check-demo-data.mjs --dist).
+
+services:
+  - type: web
+    runtime: static
+    name: elementx-portfolio-demo
+    rootDir: frontend/elementx-frontend
+    buildCommand: npm ci && npm run build:demo
+    staticPublishPath: dist
+    autoDeploy: false
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0 # Vite 7 needs ^20.19 || >=22.12; confirm the value is offered in the dashboard
+    headers:
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self' 'sha256-NGaGWxhdmdiSizB5iTnKeung6INKz4YlzjmuiIZ8E/w='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /demo/*
+        name: Cache-Control
+        value: public, max-age=300

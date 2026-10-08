@@ -4,6 +4,9 @@ import './index.css'
 import App from './App.tsx'
 import AuthProvider from './auth/AuthProvider.tsx'
 import ThemeProvider from './theme/ThemeProvider.tsx'
+import { DEMO_MODE } from './demo/demoMode.ts'
+
+if (DEMO_MODE) document.title = 'ElementX: Portfolio demo'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

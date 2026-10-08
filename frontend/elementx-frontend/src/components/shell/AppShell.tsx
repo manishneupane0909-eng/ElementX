@@ -22,6 +22,9 @@ interface AppShellProps {
   onSelect: (id: string) => void
   user: ShellUser | null
   onSignOut: () => void
+  /** Portfolio demo: no account controls; shows the demo notice and a way back to the start. */
+  demo?: boolean
+  onExitDemo?: () => void
   children: ReactNode
 }
 
@@ -50,6 +53,8 @@ export default function AppShell({
   onSelect,
   user,
   onSignOut,
+  demo = false,
+  onExitDemo,
   children,
 }: AppShellProps) {
   const [collapsed, setCollapsed] = useState<boolean>(readCollapsed)
@@ -145,24 +150,45 @@ export default function AppShell({
           </ul>
         </nav>
 
-        <div className="sidebar__foot" role="group" aria-label="Account">
-          <div
-            className="sidebar__user"
-            title={user ? `${user.name} (${user.email})` : undefined}
-          >
-            <span className="sidebar__initial" aria-hidden="true">
-              {initialOf(user)}
-            </span>
-            <span className="sidebar__identity">
-              <span className="sidebar__name">{user?.name}</span>
-              <span className="sidebar__email">{user?.email}</span>
-            </span>
-          </div>
+        <div className="sidebar__foot" role="group" aria-label={demo ? 'Demo' : 'Account'}>
+          {demo ? (
+            <div className="sidebar__demo">
+              <span className="demo-tag">Portfolio demo</span>
+              <span className="sidebar__demo-text">Read-only example records</span>
+            </div>
+          ) : (
+            <div
+              className="sidebar__user"
+              title={user ? `${user.name} (${user.email})` : undefined}
+            >
+              <span className="sidebar__initial" aria-hidden="true">
+                {initialOf(user)}
+              </span>
+              <span className="sidebar__identity">
+                <span className="sidebar__name">{user?.name}</span>
+                <span className="sidebar__email">{user?.email}</span>
+              </span>
+            </div>
+          )}
           <ThemeToggle />
-          <button type="button" className="shell-btn" onClick={onSignOut} title="Log out">
-            <LogoutIcon />
-            <span className="shell-btn__label">Log out</span>
-          </button>
+          {demo ? (
+            onExitDemo && (
+              <button
+                type="button"
+                className="shell-btn"
+                onClick={onExitDemo}
+                title="About this demo"
+              >
+                <LogoutIcon />
+                <span className="shell-btn__label">About this demo</span>
+              </button>
+            )
+          ) : (
+            <button type="button" className="shell-btn" onClick={onSignOut} title="Log out">
+              <LogoutIcon />
+              <span className="shell-btn__label">Log out</span>
+            </button>
+          )}
         </div>
       </aside>
 
@@ -180,7 +206,14 @@ export default function AppShell({
             <MenuIcon />
           </button>
           <h1 className="topbar__title">{active?.title ?? active?.label}</h1>
+          {demo && <span className="demo-tag topbar__demo">Portfolio demo</span>}
         </header>
+        {demo && (
+          <aside className="demo-banner" aria-label="Portfolio demo notice">
+            <strong>Portfolio demo.</strong> Example records are read-only: nothing here is saved,
+            uploaded or sent to a server.
+          </aside>
+        )}
         <main id="main-content" className="app-main" tabIndex={-1}>
           {children}
         </main>

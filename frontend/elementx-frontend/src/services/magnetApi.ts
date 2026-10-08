@@ -3,6 +3,15 @@
  */
 
 import { API_BASE_URL, authFetch } from './apiClient';
+import { DEMO_MODE, DemoDisabledError } from '../demo/demoMode';
+import {
+  demoGetCopilotStatus,
+  demoGetExperiment,
+  demoGetSample,
+  demoListSamples,
+  demoQueryFormula,
+  demoSendCopilotMessage,
+} from '../demo/demoData';
 
 export interface SymmetryInfo {
   crystal_system: string | null;
@@ -169,6 +178,7 @@ async function handleResponse<T>(response: Response, fallbackMessage: string): P
  * Query Materials Project for structural symmetry and magnetic properties.
  */
 export async function queryFormula(formula: string): Promise<FormulaQueryResult> {
+  if (DEMO_MODE) return demoQueryFormula(formula);
   const response = await authFetch(`${API_BASE_URL}/api/query-formula`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -185,6 +195,7 @@ export async function queryFormula(formula: string): Promise<FormulaQueryResult>
  * Upload and parse a local CIF file.
  */
 export async function parseCif(file: File): Promise<CifParseResult> {
+  if (DEMO_MODE) throw new DemoDisabledError('CIF upload');
   const formData = new FormData();
   formData.append('file', file);
 
@@ -202,6 +213,7 @@ export async function parseCif(file: File): Promise<CifParseResult> {
 export async function analyzeMagnet(
   payload: AnalyzeMagnetRequest,
 ): Promise<AnalyzeMagnetResult> {
+  if (DEMO_MODE) throw new DemoDisabledError('Live analysis');
   const response = await authFetch(`${API_BASE_URL}/api/analyze-magnet`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -416,6 +428,7 @@ export async function analyzeMagnetometry(
   file: File,
   userConfirmedMassMg?: number,
 ): Promise<MagnetometryAnalyzeResult> {
+  if (DEMO_MODE) throw new DemoDisabledError('File upload');
   const formData = new FormData();
   formData.append('file', file);
   if (userConfirmedMassMg !== undefined) {
@@ -433,7 +446,26 @@ export async function analyzeMagnetometry(
   );
 }
 
+/** Present only in the portfolio demo: what kind of data a record holds. */
+export type DemoDataKind = 'real-measurement' | 'synthetic';
+
+export interface DemoLabel {
+  data_kind: DemoDataKind;
+  label: string;
+}
+
+/** Provenance recorded for a public demo copy of an example file (demo snapshots only). */
+export interface DemoProvenance extends DemoLabel {
+  description: string;
+  source_file: string;
+  source_sha256: string;
+  source_bytes: number;
+  analysis_pipeline: string;
+  modifications: string[];
+}
+
 export interface SampleSummary {
+  demo?: DemoLabel;
   id: string;
   name: string;
   formula: string | null;
@@ -444,6 +476,7 @@ export interface SampleSummary {
 }
 
 export interface ExperimentSummary {
+  demo?: DemoLabel;
   id: string;
   experiment_type: string;
   original_filename: string;
@@ -456,6 +489,7 @@ export interface SampleDetail extends SampleSummary {
 }
 
 interface SavedExperimentBase {
+  demo?: DemoProvenance;
   id: string;
   sample_id: string;
   original_filename: string;
@@ -494,6 +528,7 @@ export async function createSample(body: {
   formula?: string;
   notes?: string;
 }): Promise<SampleSummary> {
+  if (DEMO_MODE) throw new DemoDisabledError('Creating samples');
   const response = await authFetch(RESEARCH_SAMPLES, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -503,11 +538,13 @@ export async function createSample(body: {
 }
 
 export async function listSamples(): Promise<SampleSummary[]> {
+  if (DEMO_MODE) return demoListSamples();
   const response = await authFetch(RESEARCH_SAMPLES);
   return handleResponse<SampleSummary[]>(response, 'Failed to load samples.');
 }
 
 export async function getSample(sampleId: string): Promise<SampleDetail> {
+  if (DEMO_MODE) return demoGetSample(sampleId);
   const response = await authFetch(`${RESEARCH_SAMPLES}/${sampleId}`);
   return handleResponse<SampleDetail>(response, 'Failed to load sample.');
 }
@@ -517,6 +554,7 @@ export async function createSampleExperiment(
   file: File,
   userConfirmedMassMg?: number,
 ): Promise<SavedMagnetometryExperiment> {
+  if (DEMO_MODE) throw new DemoDisabledError('Saving experiments');
   const formData = new FormData();
   formData.append('file', file);
   if (userConfirmedMassMg !== undefined) {
@@ -538,6 +576,7 @@ export async function createXrdExperiment(
   sampleId: string,
   file: File,
 ): Promise<SavedXrdExperiment> {
+  if (DEMO_MODE) throw new DemoDisabledError('Saving experiments');
   const formData = new FormData();
   formData.append('file', file);
 
@@ -553,6 +592,7 @@ export async function createXrdExperiment(
 }
 
 export async function getExperiment(experimentId: string): Promise<SavedExperiment> {
+  if (DEMO_MODE) return demoGetExperiment(experimentId);
   const response = await authFetch(`${RESEARCH_EXPERIMENTS}/${experimentId}`);
   return handleResponse<SavedExperiment>(response, 'Failed to load experiment.');
 }
@@ -579,6 +619,7 @@ export interface CopilotReply {
 }
 
 export async function getCopilotStatus(): Promise<CopilotStatus> {
+  if (DEMO_MODE) return demoGetCopilotStatus();
   const response = await authFetch(`${API_BASE_URL}/api/research-copilot/status`);
   return handleResponse<CopilotStatus>(response, 'Failed to load Copilot status.');
 }
@@ -588,6 +629,7 @@ export async function sendCopilotMessage(
   sampleId: string | null,
   history: CopilotHistoryMessage[],
 ): Promise<CopilotReply> {
+  if (DEMO_MODE) return demoSendCopilotMessage(sampleId);
   const response = await authFetch(`${API_BASE_URL}/api/research-copilot/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
