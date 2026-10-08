@@ -6,6 +6,7 @@ from pydantic import BaseModel
 import database
 import local_store
 from auth import verify_token
+from services.production_config import demo_bootstrap_enabled
 from services.demo_data import DEMO_EMAIL, DEMO_PASSWORD, DEMO_NAME
 from services.demo_loader import seed_demo_lab
 
@@ -26,7 +27,13 @@ async def load_demo(payload: DemoLoadRequest = DemoLoadRequest(), user=Depends(v
 
 @router.post("/bootstrap")
 async def bootstrap_demo_account():
-    """Create or reset the shared demo login (no auth required). Works with or without MongoDB."""
+    """Create or reset the shared demo login (no auth required). Works with or without MongoDB.
+
+    Disabled in production (404) unless ELEMENTX_ENABLE_DEMO is explicitly set, because it
+    creates a shared, publicly documented account.
+    """
+    if not demo_bootstrap_enabled():
+        raise HTTPException(404, "Not found.")
     hashed = bcrypt.hashpw(DEMO_PASSWORD.encode(), bcrypt.gensalt())
 
     if database.DB_AVAILABLE:

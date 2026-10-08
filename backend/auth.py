@@ -14,3 +14,11 @@ async def verify_token(cred: HTTPAuthorizationCredentials = Depends(security)):
         raise HTTPException(401, "Token has expired")
     except jwt.InvalidTokenError:
         raise HTTPException(401, "Invalid token")
+
+
+async def current_owner_id(claims: dict = Depends(verify_token)) -> str:
+    """Server-side identity for ownership: the verified JWT ``userId`` claim only."""
+    user_id = claims.get("userId")
+    if not isinstance(user_id, str) or not user_id.strip():
+        raise HTTPException(401, "Invalid token")
+    return user_id

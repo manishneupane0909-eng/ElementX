@@ -712,3 +712,184 @@
 .xrd-plot .recharts-scatter-symbol {
   outline: none;
 }
+
+/* ---- Authentication ---- */
+
+.auth-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-main {
+  width: 100%;
+  max-width: 440px;
+  padding: 2rem 1.25rem;
+}
+
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.auth-brand {
+  margin: 0 0 0.25rem;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.auth-form .primary-btn {
+  margin-top: 0.75rem;
+}
+
+.auth-switch {
+  margin: 0.5rem 0 0;
+  color: #64748b;
+  font-size: 0.92rem;
+}
+
+.link-btn {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  color: #2563eb;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.link-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---- Account menu ---- */
+
+.account-menu {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.account-menu__identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.25;
+}
+
+.account-menu__name {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.account-menu__email {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+/* ---- Physics Copilot ---- */
+
+.copilot-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.copilot-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.copilot-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.copilot-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 160px;
+  max-height: 520px;
+  overflow-y: auto;
+  padding: 0.9rem;
+  border: 1px solid #dbe3f0;
+  border-radius: 12px;
+  background: #fbfcfe;
+}
+
+.copilot-message {
+  display: flex;
+  flex-direction: column;
+  max-width: 88%;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.copilot-message--user {
+  align-self: flex-end;
+  background: #e0e7ff;
+  border-color: #c7d2fe;
+}
+
+.copilot-message--assistant {
+  align-self: flex-start;
+}
+
+.copilot-message--error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.copilot-message__who {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 0.25rem;
+}
+
+.copilot-message__text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.copilot-message__meta {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.copilot-working {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.copilot-input__row {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.copilot-input__row .text-input {
+  flex: 1;
+}

@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from main import app
+from tests.auth_helpers import USER_A_ID, auth_headers
 from models.research import Experiment
 from services.db import (
     configure_engine,
@@ -55,7 +56,7 @@ class XrdPersistenceApiTests(unittest.TestCase):
                 db.close()
 
         app.dependency_overrides[get_db] = override_get_db
-        cls.client = TestClient(app)
+        cls.client = TestClient(app, headers=auth_headers(USER_A_ID))
         cls.xrd_bytes = XRD_FIXTURE_PATH.read_bytes()
         cls.magnetometry_bytes = MAGNETOMETRY_FIXTURE_PATH.read_bytes()
 
@@ -244,7 +245,8 @@ class XrdPersistenceApiTests(unittest.TestCase):
         self.assertEqual({path.name for path in self._experiment_dirs()}, dirs_before)
 
     def test_legacy_xrd_upload_route_still_requires_auth(self) -> None:
-        response = self.client.post(
+        anonymous = TestClient(app)
+        response = anonymous.post(
             "/api/xrd/upload",
             files={"file": (XRD_FIXTURE_PATH.name, self.xrd_bytes)},
         )

@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from main import app
+from tests.auth_helpers import USER_A_ID, auth_headers
 from models.research import Experiment
 from services.db import (
     configure_engine,
@@ -60,7 +61,7 @@ class SamplesPersistenceApiTests(unittest.TestCase):
                 db.close()
 
         app.dependency_overrides[get_db] = override_get_db
-        cls.client = TestClient(app)
+        cls.client = TestClient(app, headers=auth_headers(USER_A_ID))
         cls.fixture_bytes = FIXTURE_PATH.read_bytes()
 
     @classmethod
@@ -93,7 +94,8 @@ class SamplesPersistenceApiTests(unittest.TestCase):
         return self.client.post(RESEARCH_SAMPLES, json=body)
 
     def test_v2_samples_route_is_not_replaced(self) -> None:
-        response = self.client.get("/api/samples")
+        anonymous = TestClient(app)
+        response = anonymous.get("/api/samples")
         self.assertEqual(response.status_code, 401)
 
     def test_create_sample_returns_uuid_and_fields(self) -> None:

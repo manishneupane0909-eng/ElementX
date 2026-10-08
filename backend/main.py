@@ -9,6 +9,7 @@ from scipy.signal import find_peaks
 from datetime import datetime, timedelta
 from typing import Optional, List
 import os
+import logging
 from pathlib import Path
 from uuid import uuid4
 
@@ -22,6 +23,17 @@ from routers.ai import router as ai_router
 from routers.demo import router as demo_router
 from routers.agent import router as agent_router
 from routers.research import router as research_router
+from routers.research_copilot import router as research_copilot_router
+from services.production_config import (
+    assert_production_ready,
+    cors_settings,
+    is_production,
+)
+from services.upload_limits import (
+    max_cif_upload_bytes,
+    max_upload_bytes,
+    read_upload_limited,
+)
 from services.parsers import parse_raw_file
 from services.phase_detector import detect_tau_mnal
 from services.llm_client import llm_available
@@ -49,21 +61,22 @@ from services.sample_provenance import SampleProvenanceError
 from services.mh_analysis import MHAnalysisError
 from services.magnetometry_analysis import analyze_quantum_design_magnetometry
 
+logger = logging.getLogger("elementx")
+
+# Production-only fail-fast: refuse to boot with an insecure or incomplete configuration.
+# No-op for local development.
+assert_production_ready()
+
 app = FastAPI(title="ElementX v2", version="2.0.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, **cors_settings())
 
 app.include_router(samples_router)
 app.include_router(ai_router)
 app.include_router(demo_router)
 app.include_router(agent_router)
 app.include_router(research_router)
+app.include_router(research_copilot_router)
 
 _LOCAL_USERS_BY_EMAIL = local_store._LOCAL_USERS_BY_EMAIL  # noqa: SLF001
 
@@ -77,6 +90,12 @@ async def _startup_check_db():
         print("MongoDB: connected")
     except Exception as e:
         database.DB_AVAILABLE = False
+        if is_production():
+            # Never run production on in-memory accounts.
+            print(f"MongoDB: NOT connected ({type(e).__name__}); refusing to start in production.")
+            raise RuntimeError(
+                "Production startup aborted: the persistent identity database is unavailable."
+            ) from None
         print(f"MongoDB: NOT connected ({type(e).__name__}: {e})")
 
 
@@ -177,8 +196,15 @@ class AnalyzeMagnetResult(BaseModel):
 materials_client = MaterialsClient()
 
 
+def _require_identity_database() -> None:
+    """Production must never fall back to in-memory user accounts."""
+    if is_production() and not database.DB_AVAILABLE:
+        raise HTTPException(503, "Account service is temporarily unavailable.")
+
+
 @app.post("/api/auth/register")
 async def register(user: UserIn):
+    _require_identity_database()
     try:
         if database.DB_AVAILABLE:
             if await database.db.users.find_one({"email": user.email}):
@@ -218,12 +244,14 @@ async def register(user: UserIn):
         }
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(500, f"Registration failed: {str(e)}")
+    except Exception:
+        logger.exception("Registration failed")
+        raise HTTPException(500, "Registration failed.")
 
 
 @app.post("/api/auth/login")
 async def login(data: LoginRequest):
+    _require_identity_database()
     try:
         if database.DB_AVAILABLE:
             user = await database.db.users.find_one({"email": data.email})
@@ -242,8 +270,9 @@ async def login(data: LoginRequest):
         }
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(500, f"Login failed: {str(e)}")
+    except Exception:
+        logger.exception("Login failed")
+        raise HTTPException(500, "Login failed.")
 
 
 async def _attach_xrd_to_sample(sample_id: str, user_id: str, summary: dict):
@@ -632,12 +661,15 @@ async def parse_cif(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Only .cif files are supported.")
 
     try:
-        content = await file.read()
+        content = await read_upload_limited(file, max_cif_upload_bytes())
         return parse_cif_bytes(content, filename=file.filename)
+    except HTTPException:
+        raise
     except CifParserError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"CIF parsing failed: {exc}") from exc
+        logger.exception("CIF parsing failed")
+        raise HTTPException(status_code=500, detail="CIF parsing failed.") from exc
 
 
 @app.post("/api/magnetometry/analyze")
@@ -653,7 +685,7 @@ async def analyze_magnetometry_dat(
         raise HTTPException(status_code=400, detail="Only .dat files are supported.")
 
     try:
-        content = await file.read()
+        content = await read_upload_limited(file, max_upload_bytes())
         text = content.decode("utf-8", errors="ignore")
 
         if not is_quantum_design_dat(text):
@@ -682,9 +714,10 @@ async def analyze_magnetometry_dat(
     except MHAnalysisError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except Exception as exc:
+        logger.exception("Magnetometry analysis failed")
         raise HTTPException(
             status_code=500,
-            detail=f"Magnetometry analysis failed: {exc}",
+            detail="Magnetometry analysis failed.",
         ) from exc
 
 

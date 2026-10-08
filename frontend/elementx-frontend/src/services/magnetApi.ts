@@ -2,8 +2,7 @@
  * TypeScript client for the ElementX Material Science Magnet Analytics API.
  */
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL?.replace(/\/$/, '') ?? '';
+import { API_BASE_URL, authFetch } from './apiClient';
 
 export interface SymmetryInfo {
   crystal_system: string | null;
@@ -170,7 +169,7 @@ async function handleResponse<T>(response: Response, fallbackMessage: string): P
  * Query Materials Project for structural symmetry and magnetic properties.
  */
 export async function queryFormula(formula: string): Promise<FormulaQueryResult> {
-  const response = await fetch(`${API_BASE_URL}/api/query-formula`, {
+  const response = await authFetch(`${API_BASE_URL}/api/query-formula`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ formula }),
@@ -189,7 +188,7 @@ export async function parseCif(file: File): Promise<CifParseResult> {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${API_BASE_URL}/api/parse-cif`, {
+  const response = await authFetch(`${API_BASE_URL}/api/parse-cif`, {
     method: 'POST',
     body: formData,
   });
@@ -203,7 +202,7 @@ export async function parseCif(file: File): Promise<CifParseResult> {
 export async function analyzeMagnet(
   payload: AnalyzeMagnetRequest,
 ): Promise<AnalyzeMagnetResult> {
-  const response = await fetch(`${API_BASE_URL}/api/analyze-magnet`, {
+  const response = await authFetch(`${API_BASE_URL}/api/analyze-magnet`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -421,7 +420,7 @@ export async function analyzeMagnetometry(
     formData.append('user_confirmed_mass_mg', String(userConfirmedMassMg));
   }
 
-  const response = await fetch(`${API_BASE_URL}/api/magnetometry/analyze`, {
+  const response = await authFetch(`${API_BASE_URL}/api/magnetometry/analyze`, {
     method: 'POST',
     body: formData,
   });
@@ -493,7 +492,7 @@ export async function createSample(body: {
   formula?: string;
   notes?: string;
 }): Promise<SampleSummary> {
-  const response = await fetch(RESEARCH_SAMPLES, {
+  const response = await authFetch(RESEARCH_SAMPLES, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -502,12 +501,12 @@ export async function createSample(body: {
 }
 
 export async function listSamples(): Promise<SampleSummary[]> {
-  const response = await fetch(RESEARCH_SAMPLES);
+  const response = await authFetch(RESEARCH_SAMPLES);
   return handleResponse<SampleSummary[]>(response, 'Failed to load samples.');
 }
 
 export async function getSample(sampleId: string): Promise<SampleDetail> {
-  const response = await fetch(`${RESEARCH_SAMPLES}/${sampleId}`);
+  const response = await authFetch(`${RESEARCH_SAMPLES}/${sampleId}`);
   return handleResponse<SampleDetail>(response, 'Failed to load sample.');
 }
 
@@ -522,7 +521,7 @@ export async function createSampleExperiment(
     formData.append('user_confirmed_mass_mg', String(userConfirmedMassMg));
   }
 
-  const response = await fetch(`${RESEARCH_SAMPLES}/${sampleId}/experiments`, {
+  const response = await authFetch(`${RESEARCH_SAMPLES}/${sampleId}/experiments`, {
     method: 'POST',
     body: formData,
   });
@@ -540,7 +539,7 @@ export async function createXrdExperiment(
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${RESEARCH_SAMPLES}/${sampleId}/xrd-experiments`, {
+  const response = await authFetch(`${RESEARCH_SAMPLES}/${sampleId}/xrd-experiments`, {
     method: 'POST',
     body: formData,
   });
@@ -552,8 +551,51 @@ export async function createXrdExperiment(
 }
 
 export async function getExperiment(experimentId: string): Promise<SavedExperiment> {
-  const response = await fetch(`${RESEARCH_EXPERIMENTS}/${experimentId}`);
+  const response = await authFetch(`${RESEARCH_EXPERIMENTS}/${experimentId}`);
   return handleResponse<SavedExperiment>(response, 'Failed to load experiment.');
+}
+
+export interface CopilotHistoryMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface CopilotStatus {
+  llmAvailable: boolean;
+  model: string;
+  researchContext: boolean;
+}
+
+export interface CopilotReply {
+  answer: string;
+  /** 'stored-records' when no language model produced the text. */
+  source: string;
+  sampleId: string | null;
+  sampleName: string | null;
+  researchContext: boolean;
+  llmAvailable: boolean;
+}
+
+export async function getCopilotStatus(): Promise<CopilotStatus> {
+  const response = await authFetch(`${API_BASE_URL}/api/research-copilot/status`);
+  return handleResponse<CopilotStatus>(response, 'Failed to load Copilot status.');
+}
+
+export async function sendCopilotMessage(
+  message: string,
+  sampleId: string | null,
+  history: CopilotHistoryMessage[],
+): Promise<CopilotReply> {
+  const response = await authFetch(`${API_BASE_URL}/api/research-copilot/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message,
+      sample_id: sampleId,
+      history: history.slice(-6),
+    }),
+  });
+  return handleResponse<CopilotReply>(response, 'The Copilot request failed.');
 }
 
 export const magnetApi = {
@@ -567,6 +609,8 @@ export const magnetApi = {
   createSampleExperiment,
   createXrdExperiment,
   getExperiment,
+  getCopilotStatus,
+  sendCopilotMessage,
 };
 
 export default magnetApi;

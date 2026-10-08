@@ -20,6 +20,11 @@ class Sample(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     formula: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # JWT ``userId`` of the owning account. NULL only for rows created before
+    # ownership existed; those rows are invisible to every account until claimed.
+    owner_user_id: Mapped[Optional[str]] = mapped_column(
+        String(128), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     experiments: Mapped[list["Experiment"]] = relationship(back_populates="sample")

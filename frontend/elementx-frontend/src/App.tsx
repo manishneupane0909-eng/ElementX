@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
+import { useAuth } from './auth/useAuth'
+import AuthScreen from './components/AuthScreen'
 import MagnetometryUpload from './components/MagnetometryUpload'
+import PhysicsCopilot from './components/PhysicsCopilot'
 import SampleList from './components/SampleList'
 import Search from './components/search'
 import './App.css'
 
-type AppMode = 'legacy' | 'analytics' | 'magnetometry' | 'samples'
+type AppMode = 'analytics' | 'magnetometry' | 'samples' | 'copilot'
 
 const ELEMENTS: Record<string, number> = {
   H: 1.008, He: 4.003, Li: 6.941, Be: 9.012, B: 10.81, C: 12.01,
@@ -32,54 +35,16 @@ function normalizeSymbol(input: string): string {
   return raw
 }
 
-function LegacyElementList() {
-  const [filter, setFilter] = useState('')
+const NAV_ITEMS: { mode: AppMode; label: string }[] = [
+  { mode: 'samples', label: 'Research Samples' },
+  { mode: 'magnetometry', label: 'Magnetometry' },
+  { mode: 'analytics', label: 'Materials / CIF' },
+  { mode: 'copilot', label: 'Physics Copilot' },
+]
 
-  const entries = useMemo(() => {
-    const query = filter.trim().toLowerCase()
-    return Object.entries(ELEMENTS)
-      .filter(([symbol]) => !query || symbol.toLowerCase().includes(query))
-      .sort(([a], [b]) => a.localeCompare(b))
-  }, [filter])
-
-  return (
-    <section className="panel legacy-panel">
-      <header className="panel-header">
-        <h2>Periodic Element Reference</h2>
-        <p>Browse atomic weights for stoichiometry and synthesis planning.</p>
-      </header>
-
-      <label className="field-label" htmlFor="legacy-element-filter">
-        Filter elements
-      </label>
-      <input
-        id="legacy-element-filter"
-        className="text-input"
-        type="text"
-        placeholder="Search by symbol (e.g. Fe, Nd, B)"
-        value={filter}
-        onChange={(event) => setFilter(event.target.value)}
-      />
-
-      <div className="element-grid" role="list">
-        {entries.map(([symbol, atomicMass]) => (
-          <article key={symbol} className="element-card" role="listitem">
-            <span className="element-symbol">{symbol}</span>
-            <span className="element-mass">{atomicMass.toFixed(3)}</span>
-            <span className="element-unit">u</span>
-          </article>
-        ))}
-      </div>
-
-      {entries.length === 0 && (
-        <p className="empty-state">No elements match &ldquo;{filter}&rdquo;.</p>
-      )}
-    </section>
-  )
-}
-
-function App() {
-  const [mode, setMode] = useState<AppMode>('legacy')
+function Workspace() {
+  const { user, signOut } = useAuth()
+  const [mode, setMode] = useState<AppMode>('samples')
 
   return (
     <div className="app-shell">
@@ -89,52 +54,64 @@ function App() {
           <p>Materials Science Magnet Analytics</p>
         </div>
 
-        <nav className="mode-switcher" aria-label="Dashboard mode">
-          <button
-            type="button"
-            className={`mode-switcher__btn${mode === 'legacy' ? ' mode-switcher__btn--active' : ''}`}
-            onClick={() => setMode('legacy')}
-            aria-pressed={mode === 'legacy'}
-          >
-            Legacy Elements
-          </button>
-          <button
-            type="button"
-            className={`mode-switcher__btn${mode === 'analytics' ? ' mode-switcher__btn--active' : ''}`}
-            onClick={() => setMode('analytics')}
-            aria-pressed={mode === 'analytics'}
-          >
-            Magnet Analytics
-          </button>
-          <button
-            type="button"
-            className={`mode-switcher__btn${mode === 'magnetometry' ? ' mode-switcher__btn--active' : ''}`}
-            onClick={() => setMode('magnetometry')}
-            aria-pressed={mode === 'magnetometry'}
-          >
-            Magnetometry
-          </button>
-          <button
-            type="button"
-            className={`mode-switcher__btn${mode === 'samples' ? ' mode-switcher__btn--active' : ''}`}
-            onClick={() => setMode('samples')}
-            aria-pressed={mode === 'samples'}
-          >
-            Samples
-          </button>
+        <nav className="mode-switcher" aria-label="Workspace sections">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.mode}
+              type="button"
+              className={`mode-switcher__btn${mode === item.mode ? ' mode-switcher__btn--active' : ''}`}
+              onClick={() => setMode(item.mode)}
+              aria-pressed={mode === item.mode}
+            >
+              {item.label}
+            </button>
+          ))}
         </nav>
+
+        <div className="account-menu" aria-label="Account">
+          <div className="account-menu__identity">
+            <span className="account-menu__name">{user?.name}</span>
+            <span className="account-menu__email">{user?.email}</span>
+          </div>
+          <button type="button" className="secondary-btn" onClick={signOut}>
+            Log out
+          </button>
+        </div>
       </header>
 
       <main className="app-main">
-        {mode === 'legacy' && <LegacyElementList />}
+        {mode === 'samples' && <SampleList />}
+        {mode === 'magnetometry' && <MagnetometryUpload />}
         {mode === 'analytics' && (
           <Search elements={ELEMENTS} normalizeSymbol={normalizeSymbol} />
         )}
-        {mode === 'magnetometry' && <MagnetometryUpload />}
-        {mode === 'samples' && <SampleList />}
+        {mode === 'copilot' && <PhysicsCopilot />}
       </main>
     </div>
   )
+}
+
+function App() {
+  const { status, user } = useAuth()
+
+  if (status === 'checking') {
+    return (
+      <div className="app-shell auth-shell">
+        <main className="auth-main">
+          <div className="status-banner status-banner--info" role="status">
+            Restoring your session…
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  if (status !== 'authenticated' || !user) {
+    return <AuthScreen />
+  }
+
+  // Keyed by account so no workspace state can carry over between users.
+  return <Workspace key={user.id} />
 }
 
 export default App

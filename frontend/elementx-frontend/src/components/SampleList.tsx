@@ -25,7 +25,10 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 function formatUploadedAt(value: string): string {
-  const parsed = new Date(value)
+  // The API returns UTC timestamps without a zone suffix; without one the browser
+  // would read them as local time and shift them by the UTC offset.
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value)
+  const parsed = new Date(hasZone ? value : `${value}Z`)
   if (Number.isNaN(parsed.getTime())) {
     return value
   }

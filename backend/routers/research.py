@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from auth import current_owner_id, verify_token
 from services.db import get_db
 from services.experiment_records import (
     ExperimentNotFoundError,
@@ -29,9 +30,16 @@ from services.mh_analysis import MHAnalysisError
 from services.parsers.quantum_design import QuantumDesignParseError
 from services.sample_provenance import SampleProvenanceError
 from services.saturation import SaturationAnalysisError
+from services.upload_limits import max_upload_bytes, read_upload_limited
 from services.xrd_analysis import ALLOWED_XRD_SUFFIXES, InvalidXrdUploadError
 
-router = APIRouter(prefix="/api/research", tags=["research"])
+# Every research route requires a valid JWT; ownership is derived from the verified
+# token only (never from a client-supplied user id).
+router = APIRouter(
+    prefix="/api/research",
+    tags=["research"],
+    dependencies=[Depends(verify_token)],
+)
 
 
 class ScientificSampleCreate(BaseModel):
@@ -78,17 +86,26 @@ def _experiment_detail_payload(experiment: Any) -> dict:
 
 
 @router.post("/samples", status_code=201)
-def create_scientific_sample(body: ScientificSampleCreate, db: Session = Depends(get_db)):
+def create_scientific_sample(
+    body: ScientificSampleCreate,
+    owner_id: str = Depends(current_owner_id),
+    db: Session = Depends(get_db),
+):
     try:
-        sample = create_sample(db, body.name, body.formula, body.notes)
+        sample = create_sample(
+            db, body.name, body.formula, body.notes, owner_user_id=owner_id
+        )
     except InvalidSampleError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _sample_payload(sample, experiment_count=0)
 
 
 @router.get("/samples")
-def list_scientific_samples(db: Session = Depends(get_db)):
-    samples = list_samples(db)
+def list_scientific_samples(
+    owner_id: str = Depends(current_owner_id),
+    db: Session = Depends(get_db),
+):
+    samples = list_samples(db, owner_id)
     counts = sample_experiment_counts(db, [sample.id for sample in samples])
     return [
         _sample_payload(sample, experiment_count=counts.get(sample.id, 0))
@@ -97,10 +114,14 @@ def list_scientific_samples(db: Session = Depends(get_db)):
 
 
 @router.get("/samples/{sample_id}")
-def get_scientific_sample(sample_id: str, db: Session = Depends(get_db)):
+def get_scientific_sample(
+    sample_id: str,
+    owner_id: str = Depends(current_owner_id),
+    db: Session = Depends(get_db),
+):
     try:
-        sample = get_sample(db, sample_id)
-        summaries = list_experiment_summaries(db, sample_id)
+        sample = get_sample(db, sample_id, owner_id)
+        summaries = list_experiment_summaries(db, sample_id, owner_id)
     except SampleNotFoundError:
         raise HTTPException(status_code=404, detail="Sample not found.")
     return {
@@ -114,6 +135,7 @@ async def create_scientific_experiment(
     sample_id: str,
     file: UploadFile = File(...),
     user_confirmed_mass_mg: Optional[float] = Form(None),
+    owner_id: str = Depends(current_owner_id),
     db: Session = Depends(get_db),
 ):
     if not file.filename:
@@ -123,13 +145,16 @@ async def create_scientific_experiment(
         raise HTTPException(status_code=400, detail="Only .dat files are supported.")
 
     try:
-        content = await file.read()
+        # Reject cross-user uploads before reading or analysing the file.
+        get_sample(db, sample_id, owner_id)
+        content = await read_upload_limited(file, max_upload_bytes())
         experiment = create_magnetometry_experiment(
             db,
             sample_id=sample_id,
             original_filename=file.filename,
             content=content,
             user_confirmed_mass_mg=user_confirmed_mass_mg,
+            owner_user_id=owner_id,
         )
         return _experiment_detail_payload(experiment)
     except HTTPException:
@@ -161,6 +186,7 @@ async def create_scientific_experiment(
 async def create_scientific_xrd_experiment(
     sample_id: str,
     file: UploadFile = File(...),
+    owner_id: str = Depends(current_owner_id),
     db: Session = Depends(get_db),
 ):
     if not file.filename:
@@ -174,12 +200,14 @@ async def create_scientific_xrd_experiment(
         )
 
     try:
-        content = await file.read()
+        get_sample(db, sample_id, owner_id)
+        content = await read_upload_limited(file, max_upload_bytes())
         experiment = create_xrd_experiment(
             db,
             sample_id=sample_id,
             original_filename=file.filename,
             content=content,
+            owner_user_id=owner_id,
         )
         return _experiment_detail_payload(experiment)
     except HTTPException:
@@ -196,9 +224,13 @@ async def create_scientific_xrd_experiment(
 
 
 @router.get("/experiments/{experiment_id}")
-def get_scientific_experiment(experiment_id: str, db: Session = Depends(get_db)):
+def get_scientific_experiment(
+    experiment_id: str,
+    owner_id: str = Depends(current_owner_id),
+    db: Session = Depends(get_db),
+):
     try:
-        experiment = get_experiment(db, experiment_id)
+        experiment = get_experiment(db, experiment_id, owner_id)
     except ExperimentNotFoundError:
         raise HTTPException(status_code=404, detail="Experiment not found.")
     return _experiment_detail_payload(experiment)
