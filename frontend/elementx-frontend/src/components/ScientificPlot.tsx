@@ -26,6 +26,7 @@ interface ScientificPlotProps {
   xUnit: string
   yUnit: string
   referenceX?: PlotReferenceLine[]
+  height?: number
 }
 
 function formatTick(value: number): string {
@@ -49,6 +50,7 @@ export default function ScientificPlot({
   xUnit,
   yUnit,
   referenceX = [],
+  height = 340,
 }: ScientificPlotProps) {
   if (points.length === 0) {
     return (
@@ -57,9 +59,13 @@ export default function ScientificPlot({
   }
 
   return (
-    <div className="scientific-plot">
-      <ResponsiveContainer width="100%" height={320}>
-        <LineChart data={points} margin={{ top: 16, right: 20, bottom: 12, left: 8 }}>
+    <div
+      className="scientific-plot"
+      role="img"
+      aria-label={`${yLabel} (${yUnit}) against ${xLabel} (${xUnit}), ${points.length} measured points`}
+    >
+      <ResponsiveContainer width="100%" height={height}>
+        <LineChart data={points} margin={{ top: 16, right: 24, bottom: 24, left: 16 }}>
           <CartesianGrid stroke="var(--plot-grid)" strokeDasharray="3 3" />
           <XAxis
             dataKey="x"
@@ -68,7 +74,7 @@ export default function ScientificPlot({
             label={{
               value: `${xLabel} (${xUnit})`,
               position: 'insideBottom',
-              offset: -4,
+              offset: -12,
             }}
           />
           <YAxis
@@ -80,6 +86,8 @@ export default function ScientificPlot({
               value: `${yLabel} (${yUnit})`,
               angle: -90,
               position: 'insideLeft',
+              offset: 4,
+              style: { textAnchor: 'middle' },
             }}
           />
           <Tooltip

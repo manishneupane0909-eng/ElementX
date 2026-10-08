@@ -47,7 +47,7 @@ function normalizeSymbol(input: string): string {
 const NAV_ITEMS: (NavItem & { id: AppMode })[] = [
   { id: 'samples', label: 'Samples', icon: <SamplesIcon /> },
   { id: 'magnetometry', label: 'Magnetometry', icon: <MagnetometryIcon /> },
-  { id: 'analytics', label: 'Materials', icon: <MaterialsIcon /> },
+  { id: 'analytics', label: 'Materials', title: 'Materials Explorer', icon: <MaterialsIcon /> },
   { id: 'copilot', label: 'Physics Copilot', icon: <CopilotIcon /> },
 ]
 

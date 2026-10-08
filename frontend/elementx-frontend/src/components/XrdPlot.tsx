@@ -61,9 +61,13 @@ export default function XrdPlot({ twoThetaDeg, intensity, peaks = [] }: XrdPlotP
   })
 
   return (
-    <div className="scientific-plot xrd-plot">
-      <ResponsiveContainer width="100%" height={320}>
-        <ComposedChart data={points} margin={{ top: 16, right: 20, bottom: 12, left: 8 }}>
+    <div
+      className="scientific-plot xrd-plot"
+      role="img"
+      aria-label={`Intensity (arb. units) against 2θ (degrees), ${points.length} measured points`}
+    >
+      <ResponsiveContainer width="100%" height={340}>
+        <ComposedChart data={points} margin={{ top: 16, right: 24, bottom: 24, left: 16 }}>
           <CartesianGrid stroke="var(--plot-grid)" strokeDasharray="3 3" />
           <XAxis
             dataKey="index"
@@ -76,7 +80,7 @@ export default function XrdPlot({ twoThetaDeg, intensity, peaks = [] }: XrdPlotP
             label={{
               value: '2θ (degrees)',
               position: 'insideBottom',
-              offset: -4,
+              offset: -12,
             }}
           />
           <YAxis
@@ -88,6 +92,8 @@ export default function XrdPlot({ twoThetaDeg, intensity, peaks = [] }: XrdPlotP
               value: 'Intensity (arb. units)',
               angle: -90,
               position: 'insideLeft',
+              offset: 4,
+              style: { textAnchor: 'middle' },
             }}
           />
           <Tooltip

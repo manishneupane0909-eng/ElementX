@@ -6,6 +6,8 @@ import ThemeToggle from './ThemeToggle'
 export interface NavItem {
   id: string
   label: string
+  /** Page title when it differs from the navigation label. */
+  title?: string
   icon: ReactNode
 }
 
@@ -177,7 +179,7 @@ export default function AppShell({
           >
             <MenuIcon />
           </button>
-          <h1 className="topbar__title">{active?.label}</h1>
+          <h1 className="topbar__title">{active?.title ?? active?.label}</h1>
         </header>
         <main id="main-content" className="app-main" tabIndex={-1}>
           {children}

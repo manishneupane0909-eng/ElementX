@@ -1,7 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import MagnetometryUpload from './MagnetometryUpload'
 import XrdUpload from './XrdUpload'
+import Button from './ui/Button'
+import Notice from './ui/Notice'
+import Section from './ui/Section'
+import TextAreaField from './ui/TextAreaField'
+import TextField from './ui/TextField'
 import {
   createSample,
   getExperiment,
@@ -14,6 +19,13 @@ import {
   type SavedExperiment,
 } from '../services/magnetApi'
 
+type UploadKind = 'magnetometry' | 'xrd'
+
+const EXPERIMENT_TYPE_LABEL: Record<string, string> = {
+  magnetometry: 'Magnetometry',
+  xrd: 'XRD',
+}
+
 function errorMessage(err: unknown, fallback: string): string {
   if (err instanceof MagnetApiError) {
     return err.detail
@@ -24,15 +36,26 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback
 }
 
-function formatUploadedAt(value: string): string {
+function parseApiTimestamp(value: string): Date | null {
   // The API returns UTC timestamps without a zone suffix; without one the browser
   // would read them as local time and shift them by the UTC offset.
   const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value)
   const parsed = new Date(hasZone ? value : `${value}Z`)
-  if (Number.isNaN(parsed.getTime())) {
-    return value
-  }
-  return parsed.toLocaleString()
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function formatDateTime(value: string): string {
+  const parsed = parseApiTimestamp(value)
+  return parsed ? parsed.toLocaleString() : value
+}
+
+function formatDate(value: string): string {
+  const parsed = parseApiTimestamp(value)
+  return parsed ? parsed.toLocaleDateString() : value
+}
+
+function countLabel(count: number): string {
+  return count === 1 ? '1 experiment' : `${count} experiments`
 }
 
 export default function SampleList() {
@@ -40,11 +63,16 @@ export default function SampleList() {
   const [selected, setSelected] = useState<SampleDetail | null>(null)
   const [openedSaved, setOpenedSaved] = useState<SavedExperiment | null>(null)
   const [openedSummary, setOpenedSummary] = useState<ExperimentSummary | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [uploadKind, setUploadKind] = useState<UploadKind>('magnetometry')
   const [name, setName] = useState('')
   const [formula, setFormula] = useState('')
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const newSampleButton = useRef<HTMLButtonElement | null>(null)
+  const nameInput = useRef<HTMLDivElement | null>(null)
 
   const loadSamples = async () => {
     const listed = await listSamples()
@@ -76,10 +104,18 @@ export default function SampleList() {
     }
   }, [])
 
-  const refreshSelected = async (sampleId: string) => {
-    const detail = await getSample(sampleId)
-    setSelected(detail)
-    await loadSamples()
+  useEffect(() => {
+    if (creating) {
+      nameInput.current?.querySelector('input')?.focus()
+    }
+  }, [creating])
+
+  const closeCreateForm = () => {
+    setCreating(false)
+    setName('')
+    setFormula('')
+    setNotes('')
+    newSampleButton.current?.focus()
   }
 
   const handleCreate = async (event: FormEvent) => {
@@ -97,9 +133,7 @@ export default function SampleList() {
         formula: formula.trim() || undefined,
         notes: notes.trim() || undefined,
       })
-      setName('')
-      setFormula('')
-      setNotes('')
+      closeCreateForm()
       await loadSamples()
     } catch (err) {
       setError(errorMessage(err, 'Failed to create sample.'))
@@ -116,6 +150,7 @@ export default function SampleList() {
       setSelected(detail)
       setOpenedSaved(null)
       setOpenedSummary(null)
+      setAdding(false)
     } catch (err) {
       setError(errorMessage(err, 'Failed to load sample.'))
     } finally {
@@ -137,33 +172,76 @@ export default function SampleList() {
     }
   }
 
+  /** A new experiment was saved: refresh the sample and show the stored analysis. */
+  const handleSaved = async (saved: SavedExperiment) => {
+    setError(null)
+    try {
+      const detail = await getSample(saved.sample_id)
+      setSelected(detail)
+      await loadSamples()
+    } catch (err) {
+      setError(errorMessage(err, 'Saved, but the sample could not be refreshed.'))
+    }
+    setAdding(false)
+    setOpenedSummary({
+      id: saved.id,
+      experiment_type: saved.experiment_type,
+      original_filename: saved.original_filename,
+      uploaded_at: saved.uploaded_at,
+      analysis_version: saved.analysis_version,
+    })
+    setOpenedSaved(saved)
+  }
+
+  const backToSamples = () => {
+    setSelected(null)
+    setOpenedSaved(null)
+    setOpenedSummary(null)
+    setError(null)
+    void loadSamples()
+  }
+
+  // ---- A saved experiment ----
+
   if (selected && openedSaved && openedSummary) {
     return (
-      <div className="samples-view">
-        <section className="panel samples-panel">
-          <header className="panel-header">
-            <button
-              type="button"
-              className="secondary-btn"
-              onClick={() => {
-                setOpenedSaved(null)
-                setOpenedSummary(null)
-              }}
-            >
-              Back to sample
-            </button>
-            <h2>{selected.name}</h2>
-            <p>
-              {openedSummary.experiment_type} · {openedSummary.original_filename} ·
-              analysis version {openedSummary.analysis_version}
-            </p>
-          </header>
-          {error && (
-            <div className="status-banner status-banner--error" role="alert">
-              {error}
-            </div>
-          )}
-        </section>
+      <div className="page">
+        <nav className="crumbs" aria-label="Breadcrumb">
+          <Button variant="link" onClick={backToSamples}>
+            Samples
+          </Button>
+          <span aria-hidden="true">/</span>
+          <Button
+            variant="link"
+            onClick={() => {
+              setOpenedSaved(null)
+              setOpenedSummary(null)
+            }}
+          >
+            {selected.name}
+          </Button>
+        </nav>
+
+        <header className="entity-head">
+          <div className="entity-head__title">
+            <h2>{openedSummary.original_filename}</h2>
+            <span className="type-tag">
+              {EXPERIMENT_TYPE_LABEL[openedSummary.experiment_type] ??
+                openedSummary.experiment_type}
+            </span>
+          </div>
+          <p className="meta-line">
+            <span>
+              Sample <strong>{selected.name}</strong>
+            </span>
+            <span>Uploaded {formatDateTime(openedSummary.uploaded_at)}</span>
+            <span>Analysis version {openedSummary.analysis_version}</span>
+            <span>Stored analysis; the scientific pipeline is not re-run.</span>
+          </p>
+        </header>
+
+        {error && <Notice kind="error">{error}</Notice>}
+
         {openedSaved.experiment_type === 'xrd' ? (
           <XrdUpload readOnly initialResult={openedSaved.analysis_json} />
         ) : (
@@ -173,162 +251,253 @@ export default function SampleList() {
     )
   }
 
+  // ---- One sample ----
+
   if (selected) {
     return (
-      <div className="samples-view">
-        <section className="panel samples-panel">
-          <header className="panel-header">
-            <button
-              type="button"
-              className="secondary-btn"
-              onClick={() => {
-                setSelected(null)
-                void loadSamples()
-              }}
-            >
-              Back to samples
-            </button>
-            <h2>{selected.name}</h2>
-            {selected.formula && <p className="sample-formula">{selected.formula}</p>}
-            {selected.notes && <p className="sample-notes">{selected.notes}</p>}
-          </header>
+      <div className="page">
+        <nav className="crumbs" aria-label="Breadcrumb">
+          <Button variant="link" onClick={backToSamples}>
+            Samples
+          </Button>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page">{selected.name}</span>
+        </nav>
 
-          {error && (
-            <div className="status-banner status-banner--error" role="alert">
-              {error}
+        <header className="entity-head">
+          <div className="entity-head__title">
+            <h2>{selected.name}</h2>
+            {selected.formula && (
+              <span className="entity-head__formula">{selected.formula}</span>
+            )}
+          </div>
+          {selected.notes && <p className="entity-head__notes">{selected.notes}</p>}
+          <p className="meta-line">
+            <span>Created {formatDate(selected.created_at)}</span>
+            <span>{countLabel(selected.experiments.length)}</span>
+          </p>
+        </header>
+
+        {error && <Notice kind="error">{error}</Notice>}
+
+        <Section
+          title="Experiments"
+          actions={
+            <Button
+              variant={adding ? 'secondary' : 'primary'}
+              aria-expanded={adding}
+              aria-controls="add-experiment"
+              onClick={() => setAdding((open) => !open)}
+            >
+              {adding ? 'Cancel' : 'Add experiment'}
+            </Button>
+          }
+        >
+          {adding && (
+            <div className="inline-form" id="add-experiment">
+              <div className="span-all">
+                <div className="segmented" role="group" aria-label="Experiment type">
+                  <button
+                    type="button"
+                    className="segmented__btn"
+                    aria-pressed={uploadKind === 'magnetometry'}
+                    onClick={() => setUploadKind('magnetometry')}
+                  >
+                    Magnetometry
+                  </button>
+                  <button
+                    type="button"
+                    className="segmented__btn"
+                    aria-pressed={uploadKind === 'xrd'}
+                    onClick={() => setUploadKind('xrd')}
+                  >
+                    XRD
+                  </button>
+                </div>
+              </div>
+              <div className="span-all">
+                {uploadKind === 'magnetometry' ? (
+                  <MagnetometryUpload
+                    key="mag"
+                    sampleId={selected.id}
+                    onSaved={(saved) => void handleSaved(saved)}
+                  />
+                ) : (
+                  <XrdUpload
+                    key="xrd"
+                    sampleId={selected.id}
+                    onSaved={(saved) => void handleSaved(saved)}
+                  />
+                )}
+              </div>
             </div>
           )}
 
-          <section className="sample-experiments">
-            <h3>Experiments</h3>
-            {selected.experiments.length === 0 ? (
-              <p className="empty-state">No saved experiments yet.</p>
-            ) : (
-              <ul className="experiment-list">
-                {selected.experiments.map((experiment) => (
-                  <li key={experiment.id}>
-                    <button
-                      type="button"
-                      className="experiment-card"
-                      onClick={() => void handleOpenExperiment(experiment)}
-                    >
-                      <span className="experiment-card__type">{experiment.experiment_type}</span>
-                      <span className="experiment-card__filename">
-                        {experiment.original_filename}
-                      </span>
-                      <span className="experiment-card__meta">
-                        {formatUploadedAt(experiment.uploaded_at)} · analysis version{' '}
-                        {experiment.analysis_version}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </section>
-
-        <div className="sample-upload-stack">
-          <MagnetometryUpload
-            sampleId={selected.id}
-            onSaved={() => {
-              void refreshSelected(selected.id)
-            }}
-          />
-          <XrdUpload
-            sampleId={selected.id}
-            onSaved={() => {
-              void refreshSelected(selected.id)
-            }}
-          />
-        </div>
+          {selected.experiments.length === 0 ? (
+            !adding && (
+              <p className="empty-hint">
+                No experiments saved for this sample. Use Add experiment to upload a Quantum
+                Design magnetometry file or an XRD pattern.
+              </p>
+            )
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <caption className="sr-only">Saved experiments for {selected.name}</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Type</th>
+                    <th scope="col">File</th>
+                    <th scope="col">Uploaded</th>
+                    <th scope="col" className="hide-narrow">
+                      Analysis version
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selected.experiments.map((experiment) => (
+                    <tr key={experiment.id}>
+                      <td>
+                        <span className="type-tag">
+                          {EXPERIMENT_TYPE_LABEL[experiment.experiment_type] ??
+                            experiment.experiment_type}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="row-link"
+                          onClick={() => void handleOpenExperiment(experiment)}
+                        >
+                          {experiment.original_filename}
+                        </button>
+                      </td>
+                      <td className="cell-muted">{formatDateTime(experiment.uploaded_at)}</td>
+                      <td className="cell-muted hide-narrow">{experiment.analysis_version}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Section>
       </div>
     )
   }
 
+  // ---- Sample list ----
+
   return (
-    <section className="panel samples-panel">
-      <header className="panel-header">
-        <h2>Samples</h2>
-        <p>Create a sample, then upload and reopen saved magnetometry and XRD experiments.</p>
-      </header>
+    <div className="page">
+      <div className="page-bar">
+        <p className="page-intro">
+          Samples group your saved magnetometry and XRD experiments. Open a sample to add or
+          review them.
+        </p>
+        <Button
+          ref={newSampleButton}
+          variant={creating ? 'secondary' : 'primary'}
+          aria-expanded={creating}
+          aria-controls="new-sample-form"
+          onClick={() => (creating ? closeCreateForm() : setCreating(true))}
+        >
+          {creating ? 'Cancel' : 'New sample'}
+        </Button>
+      </div>
 
-      <form className="sample-create" onSubmit={(event) => void handleCreate(event)}>
-        <h3>Create Sample</h3>
-        <label className="field-label" htmlFor="sample-name">
-          Name
-        </label>
-        <input
-          id="sample-name"
-          className="text-input"
-          required
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="Fe2CoGe annealed 48 h"
-        />
-        <label className="field-label" htmlFor="sample-formula">
-          Formula (optional)
-        </label>
-        <input
-          id="sample-formula"
-          className="text-input"
-          value={formula}
-          onChange={(event) => setFormula(event.target.value)}
-          placeholder="Fe2CoGe"
-        />
-        <label className="field-label" htmlFor="sample-notes">
-          Notes (optional)
-        </label>
-        <textarea
-          id="sample-notes"
-          className="text-input sample-notes-input"
-          value={notes}
-          onChange={(event) => setNotes(event.target.value)}
-          placeholder="Annealed 900 C for 48 h"
-          rows={3}
-        />
-        <button type="submit" className="primary-btn" disabled={loading}>
-          Create Sample
-        </button>
-      </form>
-
-      {loading && (
-        <div className="status-banner status-banner--info" role="status">
-          Loading samples…
-        </div>
+      {creating && (
+        <form
+          id="new-sample-form"
+          className="inline-form"
+          onSubmit={(event) => void handleCreate(event)}
+          aria-label="New sample"
+        >
+          <div ref={nameInput}>
+            <TextField
+              label="Name"
+              required
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Fe2CoGe annealed 48 h"
+            />
+          </div>
+          <TextField
+            label="Formula (optional)"
+            value={formula}
+            onChange={(event) => setFormula(event.target.value)}
+            placeholder="Fe2CoGe"
+          />
+          <div className="span-all">
+            <TextAreaField
+              label="Notes (optional)"
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="Annealed 900 C for 48 h"
+              rows={2}
+            />
+          </div>
+          <div className="span-all inline-form__actions">
+            <Button type="submit" variant="primary" disabled={loading}>
+              Create sample
+            </Button>
+            <Button onClick={closeCreateForm}>Cancel</Button>
+          </div>
+        </form>
       )}
 
-      {error && (
-        <div className="status-banner status-banner--error" role="alert">
-          {error}
-        </div>
-      )}
+      {error && <Notice kind="error">{error}</Notice>}
+      {loading && samples.length === 0 && <Notice kind="loading">Loading samples…</Notice>}
 
       {samples.length === 0 && !loading ? (
-        <p className="empty-state">No samples yet. Create one to save experiments.</p>
+        !creating && (
+          <p className="empty-hint">
+            No samples yet. Choose New sample, then upload a magnetometry or XRD file to keep
+            its analysis with the sample.
+          </p>
+        )
       ) : (
-        <ul className="sample-list">
-          {samples.map((sample) => (
-            <li key={sample.id}>
-              <button
-                type="button"
-                className="sample-card"
-                onClick={() => void handleOpenSample(sample.id)}
-              >
-                <span className="sample-card__name">{sample.name}</span>
-                {sample.formula && (
-                  <span className="sample-card__formula">{sample.formula}</span>
-                )}
-                <span className="sample-card__meta">
-                  {(sample.experiment_count ?? 0) === 1
-                    ? '1 experiment'
-                    : `${sample.experiment_count ?? 0} experiments`}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        samples.length > 0 && (
+          <div className="table-wrap">
+            <table className="data-table">
+              <caption className="sr-only">Your samples</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Sample</th>
+                  <th scope="col">Formula</th>
+                  <th scope="col" className="num">
+                    Experiments
+                  </th>
+                  <th scope="col" className="hide-narrow">
+                    Notes
+                  </th>
+                  <th scope="col" className="hide-narrow">
+                    Updated
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {samples.map((sample) => (
+                  <tr key={sample.id}>
+                    <td>
+                      <button
+                        type="button"
+                        className="row-link"
+                        onClick={() => void handleOpenSample(sample.id)}
+                      >
+                        {sample.name}
+                      </button>
+                    </td>
+                    <td className="mono">{sample.formula ?? '—'}</td>
+                    <td className="num">{sample.experiment_count ?? 0}</td>
+                    <td className="cell-muted cell-clip hide-narrow">{sample.notes ?? ''}</td>
+                    <td className="cell-muted hide-narrow">{formatDate(sample.updated_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
-    </section>
+    </div>
   )
 }

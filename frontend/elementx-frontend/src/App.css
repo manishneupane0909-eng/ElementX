@@ -1,8 +1,7 @@
 /*
- * ElementX application styles. Colours, spacing and type sizes come from styles/tokens.css only.
- * Panels are flat: a 1px border and no shadow, gradient or glow.
- */
-
+* ElementX application styles. Colours, spacing and type sizes come from styles/tokens.css only.
+* Panels are flat: a 1px border and no shadow, gradient or glow.
+*/
 /* ---- Application shell ---- */
 
 .shell {
@@ -39,7 +38,6 @@
 }
 
 /* Sidebar */
-
 .sidebar {
   position: sticky;
   top: 0;
@@ -228,7 +226,6 @@
 }
 
 /* Collapsed rail (desktop): icons only; labels stay available to assistive tech. */
-
 .shell[data-collapsed='true'] .sidebar__head {
   flex-direction: column;
   justify-content: center;
@@ -259,7 +256,6 @@
 }
 
 /* Top bar */
-
 .topbar {
   display: flex;
   align-items: center;
@@ -293,7 +289,6 @@
 }
 
 /* Narrow screens: the sidebar becomes a drawer opened from the top bar. */
-
 @media (max-width: 52rem) {
   .shell,
   .shell[data-collapsed='true'] {
@@ -335,7 +330,6 @@
     cursor: default;
   }
 
-  /* The drawer ignores the desktop collapsed state. */
   .shell[data-collapsed='true'] .sidebar__head {
     flex-direction: row;
     justify-content: space-between;
@@ -376,51 +370,13 @@
   }
 }
 
-/* ---- Panels and typography ---- */
-
-.panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: var(--space-5);
-}
-
-.panel-header h2 {
-  font-size: var(--text-lg);
-}
-
-.panel-header p {
-  margin-top: var(--space-1);
-  color: var(--text-muted);
-  font-size: var(--text-base);
-}
-
-.panel-header {
-  margin-bottom: var(--space-4);
-}
-
-.samples-view,
-.magnetometry-panel,
-.search-panel,
-.copilot-panel {
-  min-width: 0;
-}
-
 /* ---- Fields ---- */
-
-.field-label,
-.legacy-panel .field-label,
-.field-group label,
-.mass-confirm label {
+.field-label {
   display: block;
   margin: 0 0 var(--space-1);
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-muted);
-}
-
-.legacy-panel .field-label {
-  margin-top: var(--space-4);
 }
 
 .text-input {
@@ -459,61 +415,19 @@
   display: block;
 }
 
-.field-group {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.field-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: center;
-}
-
-.field-row .text-input {
-  flex: 1 1 15rem;
-  width: auto;
-}
-
-.search-form,
-.sample-create,
-.sample-experiments,
-.sample-list,
-.experiment-list {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.sample-create,
-.sample-experiments {
-  margin-bottom: var(--space-5);
-}
-
-.sample-create h3,
-.sample-experiments h3 {
-  font-size: var(--text-md);
-}
-
-.sample-notes-input {
-  resize: vertical;
-  min-height: 4.5rem;
-}
-
 /* ---- Buttons ---- */
-
 .primary-btn,
-.secondary-btn,
-.file-btn {
+.secondary-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: var(--control-height);
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-3);
   border: 1px solid transparent;
   border-radius: var(--radius);
   font-size: var(--text-base);
-  font-weight: 600;
+  font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -526,27 +440,20 @@
   background: var(--accent-hover);
 }
 
-.secondary-btn,
-.file-btn {
+.secondary-btn {
   background: transparent;
   color: var(--text);
   border-color: var(--control-border);
 }
 
-.secondary-btn:hover:not(:disabled),
-.file-btn:hover:not(:disabled) {
+.secondary-btn:hover:not(:disabled) {
   background: var(--surface-hover);
 }
 
 .primary-btn:disabled,
-.secondary-btn:disabled,
-.file-btn:disabled {
+.secondary-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.file-input-hidden {
-  display: none;
 }
 
 .link-btn {
@@ -572,14 +479,13 @@
 }
 
 /* ---- Messages: status banners and empty states ---- */
-
 .status-banner {
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
   border: 1px solid var(--info-border);
   border-radius: var(--radius);
   background: var(--info-bg);
   color: var(--info-text);
-  font-size: var(--text-base);
 }
 
 .status-banner--info {
@@ -615,289 +521,6 @@
   color: var(--text-muted);
 }
 
-/* ---- Search / Materials ---- */
-
-.search-panel,
-.magnetometry-panel,
-.copilot-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.search-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.search-mode-switcher {
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: var(--surface-sunken);
-}
-
-.search-mode-switcher__btn {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: var(--text-base);
-  font-weight: 600;
-  min-height: 2rem;
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.search-mode-switcher__btn:hover {
-  color: var(--text);
-  background: var(--surface-hover);
-}
-
-.search-mode-switcher__btn--active,
-.search-mode-switcher__btn--active:hover {
-  background: var(--accent-subtle);
-  color: var(--text);
-  box-shadow: inset 0 -2px 0 var(--accent);
-}
-
-.element-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(5.75rem, 1fr));
-  gap: var(--space-2);
-  margin-top: var(--space-4);
-  max-height: 58vh;
-  overflow: auto;
-  padding-right: var(--space-1);
-}
-
-.element-card {
-  display: grid;
-  justify-items: center;
-  gap: 2px;
-  padding: var(--space-3) var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-sunken);
-}
-
-.element-symbol {
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--text);
-}
-
-.element-mass {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  color: var(--text);
-}
-
-.element-unit {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-
-/* ---- Result cards and data ---- */
-
-.results-grid {
-  display: grid;
-  gap: var(--space-4);
-}
-
-@media (min-width: 56.25rem) {
-  .results-grid--split {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-.result-card,
-.mh-loop-card {
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: var(--space-4);
-  background: var(--surface-sunken);
-}
-
-.mh-loop-card {
-  background: var(--surface);
-}
-
-.result-card h3,
-.magnetometry-card h3,
-.mh-loop-card h3,
-.magnetometry-subcard h4 {
-  margin: 0 0 var(--space-3);
-  font-size: var(--text-md);
-  color: var(--text);
-}
-
-.magnetometry-subcard h4 {
-  font-size: var(--text-base);
-}
-
-.result-list {
-  margin: 0;
-  display: grid;
-  gap: var(--space-2);
-}
-
-.result-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-4);
-  font-size: var(--text-base);
-}
-
-.result-row dt {
-  margin: 0;
-  color: var(--text-muted);
-}
-
-.result-row dd {
-  margin: 0;
-  color: var(--text);
-  font-weight: 600;
-  text-align: right;
-  overflow-wrap: anywhere;
-}
-
-.lattice-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-}
-
-.lattice-cell {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  padding: var(--space-2);
-  text-align: center;
-}
-
-.lattice-cell span {
-  display: block;
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-
-.lattice-cell strong {
-  display: block;
-  margin-top: 2px;
-  font-family: var(--font-mono);
-  font-size: var(--text-base);
-  font-weight: 500;
-  color: var(--text);
-}
-
-/* ---- Magnetometry ---- */
-
-.magnetometry-upload .selected-filename {
-  color: var(--text-muted);
-  font-size: var(--text-base);
-  overflow-wrap: anywhere;
-}
-
-.magnetometry-results,
-.magnetometry-stack {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.magnetometry-section h3 {
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-md);
-}
-
-.magnetometry-section__note {
-  margin: 0 0 var(--space-3);
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
-.magnetometry-dl {
-  margin-bottom: var(--space-3);
-}
-
-.magnetometry-warnings {
-  margin: var(--space-3) 0 0;
-  padding-left: var(--space-4);
-  color: var(--warn-text);
-  font-size: var(--text-sm);
-}
-
-.mass-candidate-list {
-  display: grid;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
-.mass-candidate {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: var(--space-3);
-  background: var(--surface);
-}
-
-.mass-candidate__value {
-  font-weight: 600;
-  color: var(--text);
-}
-
-.mass-candidate__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
-  margin-top: var(--space-1);
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
-.mass-confirm {
-  display: grid;
-  gap: var(--space-1);
-  margin-top: var(--space-3);
-}
-
-.mh-loop-card__header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
-.mh-loop-card__header h3 {
-  margin: 0;
-}
-
-.mh-loop-card__index {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
-.mh-loop-grid {
-  display: grid;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
-}
-
-@media (min-width: 56.25rem) {
-  .mh-loop-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 .evidence-caption {
   margin: 0 0 var(--space-2);
   font-size: var(--text-base);
@@ -917,32 +540,7 @@
   color: var(--text-muted);
 }
 
-.evidence-badge--high {
-  background: var(--success-bg);
-  border-color: var(--success-border);
-  color: var(--success-text);
-}
-
-.evidence-badge--medium {
-  background: var(--warn-bg);
-  border-color: var(--warn-border);
-  color: var(--warn-text);
-}
-
-.evidence-badge--low {
-  background: var(--danger-bg);
-  border-color: var(--danger-border);
-  color: var(--danger-text);
-}
-
-.evidence-badge--unknown {
-  background: var(--surface-hover);
-  border-color: var(--border-strong);
-  color: var(--text-muted);
-}
-
 /* ---- Plots ---- */
-
 .scientific-plot {
   width: 100%;
   margin: 0 0 var(--space-4);
@@ -993,103 +591,7 @@
   outline: none;
 }
 
-/* ---- Samples ---- */
-
-.samples-view {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.samples-panel .panel-header h2 {
-  margin-top: var(--space-2);
-}
-
-.sample-list,
-.experiment-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.sample-card,
-.experiment-card {
-  width: 100%;
-  display: grid;
-  gap: 2px;
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-sunken);
-  text-align: left;
-  cursor: pointer;
-}
-
-.sample-card:hover,
-.experiment-card:hover {
-  border-color: var(--border-strong);
-  background: var(--surface-hover);
-}
-
-.sample-card__name,
-.experiment-card__filename {
-  font-weight: 600;
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-
-.sample-card__formula,
-.sample-formula {
-  color: var(--secondary);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-}
-
-.sample-card__meta,
-.experiment-card__meta,
-.sample-notes,
-.experiment-card__type {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
-.experiment-card__type {
-  font-weight: 600;
-}
-
-.sample-upload-stack {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.xrd-peak-table-wrap {
-  overflow-x: auto;
-}
-
-.xrd-peak-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-}
-
-.xrd-peak-table th,
-.xrd-peak-table td {
-  text-align: left;
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--border);
-}
-
-.xrd-peak-table td {
-  font-family: var(--font-mono);
-}
-
-.xrd-peak-table th {
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
 /* ---- Authentication ---- */
-
 .auth-shell {
   position: relative;
   display: flex;
@@ -1157,116 +659,9 @@
   font-size: var(--text-base);
 }
 
-/* ---- Physics Copilot ---- */
-
-.copilot-controls {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.copilot-quick {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.copilot-thread {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-height: 10rem;
-  max-height: 32rem;
-  overflow-y: auto;
-  padding: var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-sunken);
-}
-
-.copilot-message {
-  display: flex;
-  flex-direction: column;
-  max-width: 88%;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-
-.copilot-message--user {
-  align-self: flex-end;
-  background: var(--accent-subtle);
-  border-color: var(--info-border);
-}
-
-.copilot-message--assistant {
-  align-self: flex-start;
-}
-
-.copilot-message--error {
-  background: var(--danger-bg);
-  border-color: var(--danger-border);
-  color: var(--danger-text);
-}
-
-.copilot-message__who {
-  margin-bottom: var(--space-1);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.copilot-message--error .copilot-message__who {
-  color: inherit;
-}
-
-.copilot-message__text {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-family: inherit;
-  font-size: var(--text-base);
-  line-height: 1.5;
-}
-
-.copilot-message__meta {
-  margin-top: var(--space-2);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-
-.copilot-working {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
-.copilot-input__row {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.copilot-input__row .text-input {
-  flex: 1;
-}
-
 /* ---- Small screens ---- */
-
 @media (max-width: 40rem) {
-  .panel,
   .auth-panel {
     padding: var(--space-4);
-  }
-
-  .lattice-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .copilot-input__row {
-    flex-direction: column;
-  }
-
-  .copilot-message {
-    max-width: 100%;
   }
 }
