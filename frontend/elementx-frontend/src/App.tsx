@@ -1,6 +1,15 @@
 import { useState } from 'react'
 import { useAuth } from './auth/useAuth'
 import AuthScreen from './components/AuthScreen'
+import AppShell from './components/shell/AppShell'
+import type { NavItem } from './components/shell/AppShell'
+import Notice from './components/ui/Notice'
+import {
+  CopilotIcon,
+  MagnetometryIcon,
+  MaterialsIcon,
+  SamplesIcon,
+} from './components/ui/Icons'
 import MagnetometryUpload from './components/MagnetometryUpload'
 import PhysicsCopilot from './components/PhysicsCopilot'
 import SampleList from './components/SampleList'
@@ -35,11 +44,11 @@ function normalizeSymbol(input: string): string {
   return raw
 }
 
-const NAV_ITEMS: { mode: AppMode; label: string }[] = [
-  { mode: 'samples', label: 'Research Samples' },
-  { mode: 'magnetometry', label: 'Magnetometry' },
-  { mode: 'analytics', label: 'Materials / CIF' },
-  { mode: 'copilot', label: 'Physics Copilot' },
+const NAV_ITEMS: (NavItem & { id: AppMode })[] = [
+  { id: 'samples', label: 'Samples', icon: <SamplesIcon /> },
+  { id: 'magnetometry', label: 'Magnetometry', icon: <MagnetometryIcon /> },
+  { id: 'analytics', label: 'Materials', icon: <MaterialsIcon /> },
+  { id: 'copilot', label: 'Physics Copilot', icon: <CopilotIcon /> },
 ]
 
 function Workspace() {
@@ -47,47 +56,18 @@ function Workspace() {
   const [mode, setMode] = useState<AppMode>('samples')
 
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div className="brand">
-          <h1>ElementX</h1>
-          <p>Materials Science Magnet Analytics</p>
-        </div>
-
-        <nav className="mode-switcher" aria-label="Workspace sections">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.mode}
-              type="button"
-              className={`mode-switcher__btn${mode === item.mode ? ' mode-switcher__btn--active' : ''}`}
-              onClick={() => setMode(item.mode)}
-              aria-pressed={mode === item.mode}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="account-menu" aria-label="Account">
-          <div className="account-menu__identity">
-            <span className="account-menu__name">{user?.name}</span>
-            <span className="account-menu__email">{user?.email}</span>
-          </div>
-          <button type="button" className="secondary-btn" onClick={signOut}>
-            Log out
-          </button>
-        </div>
-      </header>
-
-      <main className="app-main">
-        {mode === 'samples' && <SampleList />}
-        {mode === 'magnetometry' && <MagnetometryUpload />}
-        {mode === 'analytics' && (
-          <Search elements={ELEMENTS} normalizeSymbol={normalizeSymbol} />
-        )}
-        {mode === 'copilot' && <PhysicsCopilot />}
-      </main>
-    </div>
+    <AppShell
+      items={NAV_ITEMS}
+      activeId={mode}
+      onSelect={(id) => setMode(id as AppMode)}
+      user={user}
+      onSignOut={signOut}
+    >
+      {mode === 'samples' && <SampleList />}
+      {mode === 'magnetometry' && <MagnetometryUpload />}
+      {mode === 'analytics' && <Search elements={ELEMENTS} normalizeSymbol={normalizeSymbol} />}
+      {mode === 'copilot' && <PhysicsCopilot />}
+    </AppShell>
   )
 }
 
@@ -96,11 +76,9 @@ function App() {
 
   if (status === 'checking') {
     return (
-      <div className="app-shell auth-shell">
+      <div className="auth-shell">
         <main className="auth-main">
-          <div className="status-banner status-banner--info" role="status">
-            Restoring your session…
-          </div>
+          <Notice kind="loading">Restoring your session…</Notice>
         </main>
       </div>
     )

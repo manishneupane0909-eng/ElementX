@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useAuth } from '../auth/useAuth'
+import ThemeToggle from './shell/ThemeToggle'
+import Button from './ui/Button'
+import Notice from './ui/Notice'
+import TextField from './ui/TextField'
 
 type AuthMode = 'login' | 'register'
 
@@ -57,45 +61,36 @@ export default function AuthScreen() {
   const isRegister = mode === 'register'
 
   return (
-    <div className="app-shell auth-shell">
+    <div className="auth-shell">
+      <div className="auth-theme">
+        <ThemeToggle />
+      </div>
       <main className="auth-main">
-        <section className="panel auth-panel" aria-labelledby="auth-title">
-          <header className="panel-header">
-            <h1 className="auth-brand">ElementX</h1>
-            <h2 id="auth-title">{isRegister ? 'Create your account' : 'Sign in'}</h2>
+        <section className="auth-panel" aria-labelledby="auth-title">
+          <p className="auth-brand">ElementX</p>
+          <header className="auth-header">
+            <h1 id="auth-title">{isRegister ? 'Create account' : 'Sign in'}</h1>
             <p>
               {isRegister
-                ? 'Your research samples and saved experiments are private to your account.'
-                : 'Sign in to open your research samples and saved experiments.'}
+                ? 'Your samples and saved experiments are private to your account.'
+                : 'Open your samples and saved experiments.'}
             </p>
           </header>
 
-          {notice && (
-            <div className="status-banner status-banner--info" role="status">
-              {notice}
-            </div>
-          )}
+          {notice && <Notice kind="info">{notice}</Notice>}
 
           <form className="auth-form" onSubmit={(event) => void handleSubmit(event)} noValidate>
             {isRegister && (
               <>
-                <label className="field-label" htmlFor="auth-name">
-                  Name
-                </label>
-                <input
-                  id="auth-name"
-                  className="text-input"
+                <TextField
+                  label="Name"
                   autoComplete="name"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   disabled={submitting}
                 />
-                <label className="field-label" htmlFor="auth-institution">
-                  Institution (optional)
-                </label>
-                <input
-                  id="auth-institution"
-                  className="text-input"
+                <TextField
+                  label="Institution (optional)"
                   autoComplete="organization"
                   value={institution}
                   onChange={(event) => setInstitution(event.target.value)}
@@ -104,12 +99,8 @@ export default function AuthScreen() {
               </>
             )}
 
-            <label className="field-label" htmlFor="auth-email">
-              Email
-            </label>
-            <input
-              id="auth-email"
-              className="text-input"
+            <TextField
+              label="Email"
               type="email"
               autoComplete="email"
               required
@@ -118,29 +109,22 @@ export default function AuthScreen() {
               disabled={submitting}
             />
 
-            <label className="field-label" htmlFor="auth-password">
-              Password
-            </label>
-            <input
-              id="auth-password"
-              className="text-input"
+            <TextField
+              label="Password"
               type="password"
               autoComplete={isRegister ? 'new-password' : 'current-password'}
               required
+              hint={isRegister ? `At least ${MIN_PASSWORD_LENGTH} characters.` : undefined}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               disabled={submitting}
             />
 
-            {error && (
-              <div className="status-banner status-banner--error" role="alert">
-                {error}
-              </div>
-            )}
+            {error && <Notice kind="error">{error}</Notice>}
 
-            <button
+            <Button
               type="submit"
-              className="primary-btn"
+              variant="primary"
               disabled={submitting || !email.trim() || !password}
             >
               {submitting
@@ -150,19 +134,18 @@ export default function AuthScreen() {
                 : isRegister
                   ? 'Create account'
                   : 'Sign in'}
-            </button>
+            </Button>
           </form>
 
           <p className="auth-switch">
             {isRegister ? 'Already have an account?' : 'New to ElementX?'}{' '}
-            <button
-              type="button"
-              className="link-btn"
+            <Button
+              variant="link"
               onClick={() => switchMode(isRegister ? 'login' : 'register')}
               disabled={submitting}
             >
               {isRegister ? 'Sign in' : 'Create an account'}
-            </button>
+            </Button>
           </p>
         </section>
       </main>

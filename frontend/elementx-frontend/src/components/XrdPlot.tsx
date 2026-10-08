@@ -64,7 +64,7 @@ export default function XrdPlot({ twoThetaDeg, intensity, peaks = [] }: XrdPlotP
     <div className="scientific-plot xrd-plot">
       <ResponsiveContainer width="100%" height={320}>
         <ComposedChart data={points} margin={{ top: 16, right: 20, bottom: 12, left: 8 }}>
-          <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+          <CartesianGrid stroke="var(--plot-grid)" strokeDasharray="3 3" />
           <XAxis
             dataKey="index"
             type="number"
@@ -103,9 +103,9 @@ export default function XrdPlot({ twoThetaDeg, intensity, peaks = [] }: XrdPlotP
           <Line
             type="linear"
             dataKey="intensity"
-            stroke="#4f46e5"
+            stroke="var(--plot-series-1)"
             strokeWidth={1.5}
-            dot={{ r: 1.25, fill: '#4f46e5', strokeWidth: 0 }}
+            dot={{ r: 1.25, fill: 'var(--plot-series-1)', strokeWidth: 0 }}
             isAnimationActive={false}
             connectNulls={false}
           />
@@ -113,7 +113,7 @@ export default function XrdPlot({ twoThetaDeg, intensity, peaks = [] }: XrdPlotP
             <Scatter
               data={peakPoints}
               dataKey="intensity"
-              fill="#c026d3"
+              fill="var(--plot-series-2)"
               name="Detected intensity maxima"
               isAnimationActive={false}
             />

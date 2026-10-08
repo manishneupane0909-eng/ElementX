@@ -60,7 +60,7 @@ export default function ScientificPlot({
     <div className="scientific-plot">
       <ResponsiveContainer width="100%" height={320}>
         <LineChart data={points} margin={{ top: 16, right: 20, bottom: 12, left: 8 }}>
-          <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+          <CartesianGrid stroke="var(--plot-grid)" strokeDasharray="3 3" />
           <XAxis
             dataKey="x"
             type="number"
@@ -89,23 +89,23 @@ export default function ScientificPlot({
             ]}
             labelFormatter={(value) => `${xLabel}: ${formatTick(Number(value))} ${xUnit}`}
           />
-          <ReferenceLine x={0} stroke="#94a3b8" strokeDasharray="4 4" />
-          <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
+          <ReferenceLine x={0} stroke="var(--plot-ref)" strokeDasharray="4 4" />
+          <ReferenceLine y={0} stroke="var(--plot-ref)" strokeDasharray="4 4" />
           {referenceX.map((line) => (
             <ReferenceLine
               key={`${line.label}-${line.x}`}
               x={line.x}
-              stroke="#7c3aed"
+              stroke="var(--plot-series-2)"
               strokeDasharray="2 4"
-              label={{ value: line.label, fill: '#6d28d9', fontSize: 11 }}
+              label={{ value: line.label, fill: 'var(--plot-series-2)', fontSize: 11 }}
             />
           ))}
           <Line
             type="linear"
             dataKey="y"
-            stroke="#4f46e5"
+            stroke="var(--plot-series-1)"
             strokeWidth={1.5}
-            dot={{ r: 1.25, fill: '#4f46e5', strokeWidth: 0 }}
+            dot={{ r: 1.25, fill: 'var(--plot-series-1)', strokeWidth: 0 }}
             isAnimationActive={false}
             connectNulls={false}
           />

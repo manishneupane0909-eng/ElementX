@@ -1,0 +1,134 @@
+/*
+ * ElementX design tokens.
+ *
+ * Dark is the default theme. A theme is selected by the data-theme attribute on <html>
+ * (set before first paint by the script in index.html and kept in sync by ThemeProvider).
+ * Components must use these variables and never raw colours, so both themes stay consistent.
+ *
+ * Contrast of every text/background pair below is checked by `npm run check:contrast`.
+ */
+
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --canvas: #16181d;
+  --surface: #202329;
+  --surface-sunken: #1b1e23;
+  --surface-hover: #292d34;
+  --border: #2c313a;
+  --border-strong: #404652;
+  --control-border: #697180;
+
+  /* Text */
+  --text: #e7e8ea;
+  --text-muted: #9ea5b0;
+  --text-faint: #8a919c;
+
+  /* Accents: muted blue for interaction, ochre for secondary scientific emphasis */
+  --accent: #6f91b7;
+  --accent-hover: #86a6ca;
+  --accent-text: #8eadd0;
+  --accent-subtle: #25303c;
+  --on-accent: #101318;
+  --secondary: #b69a63;
+
+  /* Status */
+  --danger-text: #ec9a93;
+  --danger-bg: #2b2023;
+  --danger-border: #5b3a3e;
+  --warn-text: #cdb27c;
+  --warn-bg: #2a261d;
+  --warn-border: #51472f;
+  --success-text: #93c4a0;
+  --success-bg: #1f2a23;
+  --success-border: #35503f;
+  --info-text: #adc4dd;
+  --info-bg: #1f2833;
+  --info-border: #34475c;
+
+  /* Scientific plots */
+  --plot-surface: #1b1e23;
+  --plot-grid: #2c313a;
+  --plot-axis: #9ea5b0;
+  --plot-ref: #6c7585;
+  --plot-series-1: #6f91b7;
+  --plot-series-2: #b69a63;
+
+  --focus-ring: #86a6ca;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --canvas: #f4f3ef;
+  --surface: #ffffff;
+  --surface-sunken: #f9f8f5;
+  --surface-hover: #eeede8;
+  --border: #dcdad3;
+  --border-strong: #bdb9ae;
+  --control-border: #8a867b;
+
+  --text: #1c1f24;
+  --text-muted: #565d68;
+  --text-faint: #666d78;
+
+  --accent: #3b6490;
+  --accent-hover: #2f5380;
+  --accent-text: #3b6490;
+  --accent-subtle: #e6ecf3;
+  --on-accent: #ffffff;
+  --secondary: #86692f;
+
+  --danger-text: #9d2f29;
+  --danger-bg: #fbeeed;
+  --danger-border: #e2b8b5;
+  --warn-text: #765619;
+  --warn-bg: #f8f1e1;
+  --warn-border: #dcc99d;
+  --success-text: #2b6340;
+  --success-bg: #e9f3ec;
+  --success-border: #b6d3bf;
+  --info-text: #2c5179;
+  --info-bg: #eaf0f6;
+  --info-border: #b9cadc;
+
+  --plot-surface: #ffffff;
+  --plot-grid: #e4e2dc;
+  --plot-axis: #565d68;
+  --plot-ref: #8d897e;
+  --plot-series-1: #3b6490;
+  --plot-series-2: #86692f;
+
+  --focus-ring: #2f5380;
+}
+
+/* Theme-independent tokens */
+:root {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  --radius-sm: 3px;
+  --radius: 5px;
+
+  --sidebar-width: 14.5rem;
+  --sidebar-width-collapsed: 3.5rem;
+  --content-max: 76rem;
+  --control-height: 2.25rem;
+}
