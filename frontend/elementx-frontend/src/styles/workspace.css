@@ -631,12 +631,6 @@
   line-height: 1.6;
 }
 
-.msg__meta {
-  margin-top: var(--space-2);
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-}
-
 .copilot__composer {
   display: grid;
   gap: var(--space-2);
@@ -834,4 +828,348 @@
 
 .kv + .lattice-line {
   margin-top: var(--space-3);
+}
+
+/* ---- Disclosure: secondary diagnostics and provenance ---- */
+
+.disclosure {
+  min-width: 0;
+}
+
+.disclosure__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: fit-content;
+  min-height: var(--control-height);
+  color: var(--accent-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.disclosure__summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure__summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid currentColor;
+  transition: transform 120ms ease;
+}
+
+.disclosure[open] > .disclosure__summary::before {
+  transform: rotate(90deg);
+}
+
+.disclosure__summary:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.disclosure__summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.disclosure__body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-1) 0 var(--space-2) var(--space-4);
+  border-left: 1px solid var(--border);
+  margin-left: 2px;
+}
+
+.kv + .disclosure,
+.note + .disclosure {
+  margin-top: var(--space-2);
+}
+
+.figure__side .disclosure__body {
+  padding-left: var(--space-3);
+}
+
+/* ---- Magnetometry pre-upload ---- */
+
+.pre-upload {
+  display: grid;
+  gap: var(--space-1);
+  max-width: 48rem;
+}
+
+.pre-upload__summary {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* ---- Plot controls ---- */
+
+.plot-view {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.plot-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.plot-toolbar .plot-toolbar__btn {
+  min-height: 1.75rem;
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.plot-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.plot-range__field {
+  display: grid;
+  gap: var(--space-1);
+  width: 10rem;
+}
+
+.plot-range__field label {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.plot-range__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.plot-range__error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--danger-text);
+  font-size: var(--text-sm);
+}
+
+.scientific-plot__hint {
+  color: var(--text-faint);
+}
+
+/* The chart surface is focusable (arrow keys step through points); show focus on its frame. */
+.scientific-plot:has(.recharts-surface:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.plot-dialog {
+  width: min(72rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--canvas);
+  color: var(--text);
+}
+
+.plot-dialog::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+
+.plot-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.plot-dialog__title {
+  font-size: var(--text-md);
+}
+
+.plot-dialog .scientific-plot {
+  margin: 0;
+}
+
+/* ---- Copilot answers ---- */
+
+.copilot__thread {
+  position: relative;
+}
+
+.answer {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 90ch;
+  line-height: 1.55;
+}
+
+.answer__para {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.answer__list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.answer__item-text {
+  display: block;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.answer__details {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-1) 0 0;
+  padding: 0 0 0 var(--space-3);
+  border-left: 1px solid var(--border-strong);
+  list-style: none;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.answer__detail--sub {
+  padding-left: var(--space-4);
+  color: var(--text-muted);
+}
+
+.msg__origin,
+.msg__grounding {
+  font-weight: 500;
+}
+
+.msg__origin--readout {
+  color: var(--warn-text);
+}
+
+.figure__side .kv dd {
+  white-space: nowrap;
+}
+
+.decimal-fraction {
+  display: inline-block;
+  text-align: left;
+}
+
+.unit-pair {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0 var(--space-2);
+}
+
+.unit-pair > span {
+  white-space: nowrap;
+}
+
+.msg__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.msg__actions .link-btn {
+  min-height: 1.5rem;
+  font-weight: 500;
+}
+
+.msg__copied {
+  color: var(--text-muted);
+}
+
+.copilot__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 var(--space-4);
+}
+
+.copilot__foot .copilot__scope {
+  margin: 0;
+}
+
+.copilot__caveats .disclosure__summary {
+  font-size: var(--text-xs);
+}
+
+.copilot__caveats[open] {
+  flex-basis: 100%;
+}
+
+/* ---- Touch and narrow screens: 44px targets for compact controls ---- */
+
+@media (pointer: coarse), (max-width: 40rem) {
+  .loop-picker__btn,
+  .segmented__btn,
+  .copilot__quick .secondary-btn,
+  .plot-toolbar .plot-toolbar__btn,
+  .msg__actions .link-btn {
+    min-height: var(--control-height);
+  }
+
+  .loop-picker__btn {
+    min-width: 4.5rem;
+  }
+
+  .crumbs .link-btn,
+  .data-table .row-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--control-height);
+  }
+
+  .copilot__quick {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .copilot__quick .secondary-btn {
+    flex-shrink: 0;
+  }
+
+  .plot-toolbar {
+    justify-content: flex-start;
+  }
+
+  .plot-range__field {
+    width: calc(50% - var(--space-2));
+  }
+
+  .plot-dialog {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    padding: var(--space-3);
+    border: 0;
+    border-radius: 0;
+  }
 }

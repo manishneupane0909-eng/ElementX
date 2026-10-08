@@ -17,26 +17,18 @@ import {
 import ScientificPlot, { type PlotPoint, type PlotReferenceLine } from './ScientificPlot'
 import Button from './ui/Button'
 import DataList, { ResultRow } from './ui/DataList'
+import Disclosure from './ui/Disclosure'
 import FileUploadBar from './ui/FileUploadBar'
 import Notice from './ui/Notice'
 import Section from './ui/Section'
 import TextField from './ui/TextField'
+import { formatNumber } from '../utils/number'
 
 const MASS_CONFIRMATION_STATUSES = new Set([
   'conflict',
   'needs_confirmation',
   'missing',
 ])
-
-function formatNumber(value: number | null | undefined, digits = 3): string {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return '—'
-  }
-  return value.toLocaleString(undefined, {
-    maximumFractionDigits: digits,
-    minimumFractionDigits: 0,
-  })
-}
 
 function formatRange(values: number[] | undefined, digits: number, unit: string): string {
   if (!values || values.length < 2) {
@@ -75,10 +67,10 @@ function seriesPoints(
 function mhReferenceLines(hysteresis: HysteresisAnalysis): PlotReferenceLine[] {
   const lines: PlotReferenceLine[] = []
   if (hysteresis.Hc_negative_Oe !== null) {
-    lines.push({ x: hysteresis.Hc_negative_Oe, label: 'Hc−' })
+    lines.push({ x: hysteresis.Hc_negative_Oe, label: 'Hc−', side: 'left' })
   }
   if (hysteresis.Hc_positive_Oe !== null) {
-    lines.push({ x: hysteresis.Hc_positive_Oe, label: 'Hc+' })
+    lines.push({ x: hysteresis.Hc_positive_Oe, label: 'Hc+', side: 'right' })
   }
   return lines
 }
@@ -89,12 +81,16 @@ function MeasuredCurve({
   xLabel,
   xUnit,
   referenceX,
+  title,
+  exportName,
 }: {
   data: MeasurementSegmentData | undefined
   xKey: 'field_Oe' | 'temperature_K'
   xLabel: string
   xUnit: string
   referenceX?: PlotReferenceLine[]
+  title: string
+  exportName: string
 }) {
   const points = seriesPoints(data?.[xKey], data?.moment_emu)
   return (
@@ -105,8 +101,14 @@ function MeasuredCurve({
       xUnit={xUnit}
       yUnit="emu"
       referenceX={referenceX}
+      title={title}
+      exportName={exportName}
     />
   )
+}
+
+function fileStem(filename: string | null | undefined): string {
+  return (filename ?? 'magnetometry').replace(/\.[^.]+$/, '')
 }
 
 function WarningList({ warnings }: { warnings: string[] }) {
@@ -143,49 +145,22 @@ function SampleMassSection({
   allowConfirmation?: boolean
 }) {
   const needsConfirmation = MASS_CONFIRMATION_STATUSES.has(provenance.resolution_status)
+  const provenanceNeedsAttention =
+    needsConfirmation ||
+    provenance.sources_agree === false ||
+    provenance.filename_masses_ambiguous
+  const candidateCount = provenance.mass_candidates.length
 
   return (
     <div id={MASS_SECTION_ID} tabIndex={-1} className="mass-section">
       <Section
         title="Sample mass"
-        description="All candidate masses reported by the backend are shown. ElementX does not silently choose a mass when sources disagree."
+        description="ElementX does not silently choose a mass when sources disagree; every candidate is listed under mass provenance."
       >
         {needsConfirmation && (
           <div className="note note--warn" role="alert">
             Sample-mass resolution is <strong>{provenance.resolution_status}</strong>.
             Mass-normalized magnetization is blocked until a mass is confirmed.
-          </div>
-        )}
-
-        {provenance.mass_candidates.length === 0 ? (
-          <p className="empty-hint">No mass candidates were reported.</p>
-        ) : (
-          <div className="table-wrap mass-table">
-            <table className="data-table">
-              <caption className="sr-only">Candidate sample masses</caption>
-              <thead>
-                <tr>
-                  <th scope="col" className="num">
-                    Mass
-                  </th>
-                  <th scope="col">Source</th>
-                  <th scope="col">Key</th>
-                  <th scope="col">Raw value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {provenance.mass_candidates.map((candidate, index) => (
-                  <tr key={`${candidate.source}-${candidate.raw_value}-${index}`}>
-                    <td className="num mono">
-                      {formatNumber(candidate.value_mg, 4)} {candidate.unit}
-                    </td>
-                    <td>{candidate.source.replaceAll('_', ' ')}</td>
-                    <td className="mono cell-muted">{candidate.source_key ?? '—'}</td>
-                    <td className="mono cell-muted">{candidate.raw_value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         )}
 
@@ -208,6 +183,47 @@ function SampleMassSection({
               label="Normalization allowed"
               value={provenance.normalization_allowed ? 'Yes' : 'No'}
             />
+          </DataList>
+        </div>
+
+        <WarningList warnings={provenance.warnings} />
+
+        <Disclosure
+          defaultOpen={provenanceNeedsAttention}
+          summary={`Mass provenance · ${candidateCount} candidate${candidateCount === 1 ? '' : 's'}`}
+        >
+          {candidateCount === 0 ? (
+            <p className="empty-hint">No mass candidates were reported.</p>
+          ) : (
+            <div className="table-wrap mass-table">
+              <table className="data-table">
+                <caption className="sr-only">Candidate sample masses</caption>
+                <thead>
+                  <tr>
+                    <th scope="col" className="num">
+                      Mass
+                    </th>
+                    <th scope="col">Source</th>
+                    <th scope="col">Key</th>
+                    <th scope="col">Raw value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {provenance.mass_candidates.map((candidate, index) => (
+                    <tr key={`${candidate.source}-${candidate.raw_value}-${index}`}>
+                      <td className="num mono">
+                        {formatNumber(candidate.value_mg, 4)} {candidate.unit}
+                      </td>
+                      <td>{candidate.source.replaceAll('_', ' ')}</td>
+                      <td className="mono cell-muted">{candidate.source_key ?? '—'}</td>
+                      <td className="mono cell-muted">{candidate.raw_value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <DataList label="Mass source agreement" columns>
             <ResultRow
               label="Sources agree"
               value={
@@ -223,9 +239,7 @@ function SampleMassSection({
               value={provenance.filename_masses_ambiguous ? 'Yes' : 'No'}
             />
           </DataList>
-        </div>
-
-        <WarningList warnings={provenance.warnings} />
+        </Disclosure>
 
         {needsConfirmation && allowConfirmation && (
           <div className="control-row mass-confirm">
@@ -251,7 +265,15 @@ function SampleMassSection({
   )
 }
 
-function MtSegmentFigure({ segment, index }: { segment: MeasurementSegment; index: number }) {
+function MtSegmentFigure({
+  segment,
+  index,
+  fileName,
+}: {
+  segment: MeasurementSegment
+  index: number
+  fileName: string
+}) {
   return (
     <article className="figure-block">
       <div className="figure__title">
@@ -266,28 +288,34 @@ function MtSegmentFigure({ segment, index }: { segment: MeasurementSegment; inde
           xKey="temperature_K"
           xLabel="Temperature"
           xUnit="K"
+          title={`M-T segment ${index}`}
+          exportName={`${fileStem(fileName)}_MT_segment_${index}`}
         />
         <div className="figure__side">
           <DataList label={`M-T segment ${index} values`}>
-            <ResultRow label="Segment index" value={String(index)} />
-            <ResultRow label="Point count" value={String(segment.point_count)} />
-            <ResultRow label="Valid points" value={String(segment.valid_point_count)} />
             <ResultRow
               label="Temperature range"
               value={formatRange(segment.temperature_range_K, 3, 'K')}
             />
             <ResultRow
-              label="Field range"
-              value={formatRange(segment.field_range_Oe, 3, 'Oe')}
-            />
-            <ResultRow
               label="Mean field"
               value={`${formatNumber(segment.mean_field_Oe, 3)} Oe`}
             />
-            <ResultRow label="Duration" value={formatDuration(segment.duration_sec)} />
+            <ResultRow label="Valid points" value={String(segment.valid_point_count)} />
             <ResultRow label="Confidence" value={formatNumber(segment.confidence, 3)} />
           </DataList>
           <WarningList warnings={segment.warnings} />
+          <Disclosure summary="Segment details">
+            <DataList label={`M-T segment ${index} details`}>
+              <ResultRow label="Segment index" value={String(index)} />
+              <ResultRow label="Point count" value={String(segment.point_count)} />
+              <ResultRow
+                label="Field range"
+                value={formatRange(segment.field_range_Oe, 3, 'Oe')}
+              />
+              <ResultRow label="Duration" value={formatDuration(segment.duration_sec)} />
+            </DataList>
+          </Disclosure>
         </div>
       </div>
     </article>
@@ -316,7 +344,15 @@ function HysteresisBlock({ hysteresis }: { hysteresis: HysteresisAnalysis }) {
   )
 }
 
-function HighFieldBlock({ highField }: { highField: HighFieldAnalysis }) {
+function HighFieldBlock({
+  highField,
+  diagnosticsOpen,
+  onDiagnosticsOpenChange,
+}: {
+  highField: HighFieldAnalysis
+  diagnosticsOpen: boolean
+  onDiagnosticsOpenChange: (open: boolean) => void
+}) {
   return (
     <Section level={3} title="High field">
       <p className="evidence-caption">
@@ -331,42 +367,50 @@ function HighFieldBlock({ highField }: { highField: HighFieldAnalysis }) {
       </p>
       <DataList label="High-field values">
         <ResultRow
-          label="Maximum positive field"
-          value={`${formatNumber(highField.maximum_positive_field_Oe, 1)} Oe`}
-        />
-        <ResultRow
-          label="Maximum negative field"
-          value={`${formatNumber(highField.maximum_negative_field_Oe, 1)} Oe`}
-        />
-        <ResultRow
-          label="Moment at max positive field"
-          value={`${formatNumber(highField.moment_at_max_positive_field_emu, 6)} emu`}
-        />
-        <ResultRow
-          label="Moment at max negative field"
-          value={`${formatNumber(highField.moment_at_max_negative_field_emu, 6)} emu`}
-        />
-        <ResultRow
           label="Maximum measured |moment|"
           value={`${formatNumber(highField.maximum_absolute_measured_moment_emu, 6)} emu`}
         />
-        <ResultRow
-          label="Positive high-field slope"
-          value={`${formatNumber(highField.positive_high_field_slope_emu_per_Oe, 10)} emu/Oe`}
-        />
-        <ResultRow
-          label="Negative high-field slope"
-          value={`${formatNumber(highField.negative_high_field_slope_emu_per_Oe, 10)} emu/Oe`}
-        />
-        <ResultRow
-          label="Positive R²"
-          value={formatNumber(highField.positive_high_field_r_squared, 4)}
-        />
-        <ResultRow
-          label="Negative R²"
-          value={formatNumber(highField.negative_high_field_r_squared, 4)}
-        />
       </DataList>
+      <Disclosure
+        summary="High-field diagnostics"
+        open={diagnosticsOpen}
+        onOpenChange={onDiagnosticsOpenChange}
+      >
+        <DataList label="High-field diagnostics">
+          <ResultRow
+            label="Maximum positive field"
+            value={`${formatNumber(highField.maximum_positive_field_Oe, 1)} Oe`}
+          />
+          <ResultRow
+            label="Maximum negative field"
+            value={`${formatNumber(highField.maximum_negative_field_Oe, 1)} Oe`}
+          />
+          <ResultRow
+            label="Moment at max positive field"
+            value={`${formatNumber(highField.moment_at_max_positive_field_emu, 6)} emu`}
+          />
+          <ResultRow
+            label="Moment at max negative field"
+            value={`${formatNumber(highField.moment_at_max_negative_field_emu, 6)} emu`}
+          />
+          <ResultRow
+            label="Positive high-field slope"
+            value={`${formatNumber(highField.positive_high_field_slope_emu_per_Oe, 10)} emu/Oe`}
+          />
+          <ResultRow
+            label="Negative high-field slope"
+            value={`${formatNumber(highField.negative_high_field_slope_emu_per_Oe, 10)} emu/Oe`}
+          />
+          <ResultRow
+            label="Positive R²"
+            value={formatNumber(highField.positive_high_field_r_squared, 4)}
+          />
+          <ResultRow
+            label="Negative R²"
+            value={formatNumber(highField.negative_high_field_r_squared, 4)}
+          />
+        </DataList>
+      </Disclosure>
     </Section>
   )
 }
@@ -385,7 +429,13 @@ function NormalizedValue({
   return (
     <ResultRow
       label={label}
-      value={`${formatNumber(value.specific_magnetization_emu_per_g, 4)} emu/g · ${formatNumber(value.specific_magnetization_Am2_per_kg, 4)} A·m²/kg`}
+      value={
+        <span className="unit-pair">
+          <span>{formatNumber(value.specific_magnetization_emu_per_g, 4)} emu/g</span>
+          <span aria-hidden="true">·</span>
+          <span>{formatNumber(value.specific_magnetization_Am2_per_kg, 4)} A·m²/kg</span>
+        </span>
+      }
     />
   )
 }
@@ -432,9 +482,15 @@ function NormalizedBlock({ normalized }: { normalized: NormalizedResults }) {
 function MhLoopFigure({
   entry,
   segment,
+  fileName,
+  diagnosticsOpen,
+  onDiagnosticsOpenChange,
 }: {
   entry: MHAnalysisEntry
   segment: MeasurementSegment | undefined
+  fileName: string
+  diagnosticsOpen: boolean
+  onDiagnosticsOpenChange: (open: boolean) => void
 }) {
   const temperature = entry.analysis.segment.mean_temperature_K
   const loopWarnings = [
@@ -459,10 +515,16 @@ function MhLoopFigure({
           xLabel="Magnetic Field"
           xUnit="Oe"
           referenceX={mhReferenceLines(entry.analysis.hysteresis)}
+          title={`M-H loop, segment ${entry.segment_index} (≈ ${formatNumber(temperature, 1)} K)`}
+          exportName={`${fileStem(fileName)}_MH_segment_${entry.segment_index}`}
         />
         <div className="figure__side">
           <HysteresisBlock hysteresis={entry.analysis.hysteresis} />
-          <HighFieldBlock highField={entry.analysis.high_field} />
+          <HighFieldBlock
+            highField={entry.analysis.high_field}
+            diagnosticsOpen={diagnosticsOpen}
+            onDiagnosticsOpenChange={onDiagnosticsOpenChange}
+          />
         </div>
       </div>
 
@@ -474,6 +536,7 @@ function MhLoopFigure({
 
 function MhLoops({ result }: { result: MagnetometryAnalyzeResult }) {
   const [selected, setSelected] = useState(0)
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const entries = result.mh_analyses
   const index = Math.min(selected, Math.max(entries.length - 1, 0))
   const entry = entries[index]
@@ -503,6 +566,9 @@ function MhLoops({ result }: { result: MagnetometryAnalyzeResult }) {
             key={entry.segment_index}
             entry={entry}
             segment={result.segmentation.segments[entry.segment_index]}
+            fileName={result.file.filename ?? 'magnetometry'}
+            diagnosticsOpen={diagnosticsOpen}
+            onDiagnosticsOpenChange={setDiagnosticsOpen}
           />
         </div>
       )}
@@ -648,7 +714,7 @@ export default function MagnetometryUpload({
             hint={
               persistMode
                 ? 'VersaLab / MultiVu export. The existing magnetometry pipeline analyzes it, and the raw file and analysis are saved under this sample.'
-                : 'VersaLab / MultiVu export. The backend analysis pipeline runs on the file; no quantities are calculated in the browser.'
+                : 'VersaLab / MultiVu export, analyzed by the backend pipeline.'
             }
           />
         </div>
@@ -664,27 +730,35 @@ export default function MagnetometryUpload({
       {error && <Notice kind="error">{error}</Notice>}
 
       {!readOnly && !persistMode && !result && !loading && (
-        <Section
-          title="What the analysis reports"
-          description="Everything below is computed by the backend pipeline from the measured data in the file."
-        >
-          <ul className="output-list">
-            <li>The M-H and M-T segments found in the file, with the file metadata.</li>
-            <li>
-              Every candidate sample mass in the header, with its source. Normalization stays
-              blocked until the mass is unambiguous or confirmed.
-            </li>
-            <li>
-              M-T segments: measured moment against temperature. Identification only; no Curie
-              temperature is calculated.
-            </li>
-            <li>
-              M-H loops: measured moment against field, with coercive field, remanence and the
-              quality of high-field evidence. The largest measured moment is not reported as a
-              saturation magnetization.
-            </li>
-          </ul>
-        </Section>
+        <div className="pre-upload">
+          <p className="pre-upload__summary">
+            The backend reports M-T and M-H segments, coercivity, remanence, high-field evidence
+            and every candidate sample mass. It does not calculate a Curie temperature or a
+            saturation magnetization.
+          </p>
+          <Disclosure summary="What the analysis reports, and its limits">
+            <ul className="output-list">
+              <li>
+                Everything is computed by the backend pipeline from the measured data in the file;
+                nothing is calculated in the browser.
+              </li>
+              <li>The M-H and M-T segments found in the file, with the file metadata.</li>
+              <li>
+                Every candidate sample mass in the header, with its source. Normalization stays
+                blocked until the mass is unambiguous or confirmed.
+              </li>
+              <li>
+                M-T segments: measured moment against temperature. Identification only; no Curie
+                temperature is calculated.
+              </li>
+              <li>
+                M-H loops: measured moment against field, with coercive field, remanence and the
+                quality of high-field evidence. The largest measured moment is not reported as a
+                saturation magnetization.
+              </li>
+            </ul>
+          </Disclosure>
+        </div>
       )}
 
       {result && (
@@ -692,7 +766,6 @@ export default function MagnetometryUpload({
           <Section title="Experiment">
             <DataList label="Experiment summary" columns>
               <ResultRow label="Filename" value={result.file.filename ?? '—'} />
-              <ResultRow label="Format" value={result.file.format} />
               <ResultRow label="Material" value={result.metadata.SAMPLE_MATERIAL || '—'} />
               <ResultRow
                 label="Sample mass (instrument metadata)"
@@ -702,24 +775,27 @@ export default function MagnetometryUpload({
                     : '—'
                 }
               />
-              <ResultRow
-                label="Total segments"
-                value={String(result.segmentation.segment_count)}
-              />
               <ResultRow label="M-H segments" value={String(result.summary.mh_segment_count)} />
               <ResultRow label="M-T segments" value={String(result.summary.mt_segment_count)} />
-              <ResultRow
-                label="Unknown segments"
-                value={String(result.summary.unknown_segment_count)}
-              />
               <ResultRow
                 label="Normalization available"
                 value={result.summary.normalization_available ? 'Yes' : 'No'}
               />
-              {result.analysis_version && (
-                <ResultRow label="Analysis version" value={result.analysis_version} />
-              )}
             </DataList>
+            <Disclosure summary="File and pipeline details">
+              <DataList label="File and pipeline details" columns>
+                <ResultRow label="Format" value={result.file.format} />
+                <ResultRow
+                  label="Total segments"
+                  value={String(result.segmentation.segment_count)}
+                />
+                <ResultRow
+                  label="Unknown segments"
+                  value={String(result.summary.unknown_segment_count)}
+                />
+                <ResultRow label="Analysis version" value={result.analysis_version ?? '—'} />
+              </DataList>
+            </Disclosure>
             <WarningList warnings={result.warnings} />
             <WarningList warnings={result.segmentation.warnings} />
             {massNeedsConfirmation && (
@@ -738,7 +814,12 @@ export default function MagnetometryUpload({
             ) : (
               <div className="stack">
                 {mtSegments.map(({ segment, index }) => (
-                  <MtSegmentFigure key={index} segment={segment} index={index} />
+                  <MtSegmentFigure
+                    key={index}
+                    segment={segment}
+                    index={index}
+                    fileName={result.file.filename ?? 'magnetometry'}
+                  />
                 ))}
               </div>
             )}

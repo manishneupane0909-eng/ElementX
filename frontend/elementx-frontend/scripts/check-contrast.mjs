@@ -61,6 +61,10 @@ checks.push(
   ['control-border', 'canvas', NONTEXT],
   ['focus-ring', 'canvas', NONTEXT],
   ['focus-ring', 'surface', NONTEXT],
+  // Disabled controls are exempt from WCAG 1.4.3, but their labels are kept readable anyway.
+  ['disabled-text', 'disabled-bg', TEXT],
+  ['disabled-text', 'canvas', TEXT],
+  ['disabled-text', 'surface', TEXT],
 )
 for (const kind of ['danger', 'warn', 'success', 'info']) checks.push([`${kind}-text`, `${kind}-bg`, TEXT])
 

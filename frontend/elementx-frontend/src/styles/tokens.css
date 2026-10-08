@@ -34,6 +34,11 @@
   --on-accent: #101318;
   --secondary: #b69a63;
 
+  /* Disabled controls: legible, but flat and clearly inactive */
+  --disabled-bg: #25282e;
+  --disabled-text: #8a919c;
+  --disabled-border: #353a43;
+
   /* Status */
   --danger-text: #ec9a93;
   --danger-bg: #2b2023;
@@ -80,6 +85,10 @@
   --accent-subtle: #e6ecf3;
   --on-accent: #ffffff;
   --secondary: #86692f;
+
+  --disabled-bg: #ecebe6;
+  --disabled-text: #646a74;
+  --disabled-border: #d3d0c8;
 
   --danger-text: #9d2f29;
   --danger-bg: #fbeeed;
@@ -131,4 +140,11 @@
   --sidebar-width-collapsed: 3.5rem;
   --content-max: 76rem;
   --control-height: 2rem;
+}
+
+/* Touch screens and phones: controls reach a 44px target. */
+@media (pointer: coarse), (max-width: 40rem) {
+  :root {
+    --control-height: 2.75rem;
+  }
 }

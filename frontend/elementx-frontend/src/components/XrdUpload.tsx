@@ -11,6 +11,7 @@ import DataList, { ResultRow } from './ui/DataList'
 import FileUploadBar from './ui/FileUploadBar'
 import Notice from './ui/Notice'
 import Section from './ui/Section'
+import { splitDecimal } from '../utils/number'
 
 const ACCEPTED_XRD_EXTENSIONS = ['.txt', '.csv', '.xy', '.dat']
 
@@ -67,6 +68,11 @@ function PeakTable({ peaks }: { peaks: XrdCandidatePeak[] }) {
     return <p className="empty-hint">No candidate intensity maxima were reported.</p>
   }
 
+  const angles = peaks.map((peak) => splitDecimal(formatNumber(peak.two_theta_deg, 4)))
+  const intensities = peaks.map((peak) => splitDecimal(formatNumber(peak.intensity, 4)))
+  const fractionWidth = (column: [string, string][]) =>
+    `${Math.max(...column.map(([, fraction]) => fraction.length))}ch`
+
   return (
     <div className="table-wrap peak-table-wrap">
       <table className="data-table">
@@ -84,13 +90,38 @@ function PeakTable({ peaks }: { peaks: XrdCandidatePeak[] }) {
         <tbody>
           {peaks.map((peak, index) => (
             <tr key={`${peak.two_theta_deg}-${peak.intensity}-${index}`}>
-              <td className="num mono">{formatNumber(peak.two_theta_deg, 4)}</td>
-              <td className="num mono">{formatNumber(peak.intensity, 4)}</td>
+              <td className="num mono">
+                <DecimalAligned parts={angles[index]} fractionWidth={fractionWidth(angles)} />
+              </td>
+              <td className="num mono">
+                <DecimalAligned
+                  parts={intensities[index]}
+                  fractionWidth={fractionWidth(intensities)}
+                />
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+  )
+}
+
+/** Right-aligned number whose decimal point lines up with the rest of its column. */
+function DecimalAligned({
+  parts: [whole, fraction],
+  fractionWidth,
+}: {
+  parts: [string, string]
+  fractionWidth: string
+}) {
+  return (
+    <>
+      {whole}
+      <span className="decimal-fraction" style={{ minWidth: fractionWidth }}>
+        {fraction}
+      </span>
+    </>
   )
 }
 
