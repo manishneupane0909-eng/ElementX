@@ -278,6 +278,8 @@ export interface HighFieldAnalysis {
   moment_at_max_positive_field_emu: number | null;
   moment_at_max_negative_field_emu: number | null;
   maximum_absolute_measured_moment_emu: number | null;
+  /** |H| at or above which the backend selects the high-field region of the full loop. */
+  high_field_threshold_Oe?: number | null;
   positive_high_field_slope_emu_per_Oe: number | null;
   negative_high_field_slope_emu_per_Oe: number | null;
   positive_high_field_r_squared: number | null;

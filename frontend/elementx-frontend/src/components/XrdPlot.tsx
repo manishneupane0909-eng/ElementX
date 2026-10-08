@@ -1,9 +1,9 @@
 import {
   CartesianGrid,
-  ComposedChart,
   Line,
+  LineChart,
+  ReferenceDot,
   ResponsiveContainer,
-  Scatter,
   Tooltip,
   XAxis,
   YAxis,
@@ -60,6 +60,8 @@ export default function XrdPlot({ twoThetaDeg, intensity, peaks = [] }: XrdPlotP
     ]
   })
 
+  const peakIndexes = new Set(peakPoints.map((peak) => peak.index))
+
   return (
     <div
       className="scientific-plot xrd-plot"
@@ -67,7 +69,7 @@ export default function XrdPlot({ twoThetaDeg, intensity, peaks = [] }: XrdPlotP
       aria-label={`Intensity (arb. units) against 2θ (degrees), ${points.length} measured points`}
     >
       <ResponsiveContainer width="100%" height={340}>
-        <ComposedChart data={points} margin={{ top: 16, right: 24, bottom: 24, left: 16 }}>
+        <LineChart data={points} margin={{ top: 16, right: 24, bottom: 24, left: 16 }}>
           <CartesianGrid stroke="var(--plot-grid)" strokeDasharray="3 3" />
           <XAxis
             dataKey="index"
@@ -102,8 +104,11 @@ export default function XrdPlot({ twoThetaDeg, intensity, peaks = [] }: XrdPlotP
               'Intensity',
             ]}
             labelFormatter={(index) => {
+              // One tooltip row per measured point; only the hovered point's own values are shown.
               const point = points[Number(index)]
-              return point ? `2θ: ${formatTick(point.twoTheta)} °` : ''
+              if (!point) return ''
+              const marker = peakIndexes.has(point.index) ? ' · candidate intensity maximum' : ''
+              return `2θ: ${formatTick(point.twoTheta)} °${marker}`
             }}
           />
           <Line
@@ -115,16 +120,17 @@ export default function XrdPlot({ twoThetaDeg, intensity, peaks = [] }: XrdPlotP
             isAnimationActive={false}
             connectNulls={false}
           />
-          {peakPoints.length > 0 && (
-            <Scatter
-              data={peakPoints}
-              dataKey="intensity"
+          {peakPoints.map((peak) => (
+            <ReferenceDot
+              key={peak.index}
+              x={peak.index}
+              y={peak.intensity}
+              r={4}
               fill="var(--plot-series-2)"
-              name="Detected intensity maxima"
-              isAnimationActive={false}
+              stroke="none"
             />
-          )}
-        </ComposedChart>
+          ))}
+        </LineChart>
       </ResponsiveContainer>
       <p className="scientific-plot__caption">{points.length} measured points</p>
     </div>

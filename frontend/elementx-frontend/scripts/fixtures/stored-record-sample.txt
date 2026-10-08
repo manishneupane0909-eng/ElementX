@@ -1,0 +1,33 @@
+The language model is not configured, so this is a direct readout of your stored research records (no interpretation applied).
+
+RESEARCH SAMPLE (stored records; values are read from saved analyses)
+Name: Fe2CoGe annealed 48 h
+Formula: Fe2CoGe
+Notes: Annealed 900 C for 48 h
+Saved experiments: 2
+- Magnetometry experiment 'Fe2CoGe_annealed_48hrs_900C_M_H_M_T.dat' (pipeline v1, uploaded 2026-10-08 06:01:33.226131)
+  M-H segments: 10, M-T segments: 1, normalization_available: True
+  Mass provenance: status=instrument_metadata, resolved_mass_mg=3.5, source=instrument_header, normalization_allowed=True
+  M-H segment 1 at mean T = 55.14 K: Hc(-) = -154.5 Oe, Hc(+) = 131.2 Oe, Mr(-) = -0.01538 emu, Mr(+) = 0.0174 emu; high-field saturation evidence = high; largest measured |moment| = 0.453 emu (a measured maximum, NOT a saturation magnetization)
+    Mass-normalized Mr(+) = 4.971 emu/g (mass source: instrument_header)
+  M-H segment 2 at mean T = 85.07 K: Hc(-) = -110.1 Oe, Hc(+) = 148.3 Oe, Mr(-) = -0.01649 emu, Mr(+) = 0.01301 emu; high-field saturation evidence = high; largest measured |moment| = 0.454 emu (a measured maximum, NOT a saturation magnetization)
+    Mass-normalized Mr(+) = 3.716 emu/g (mass source: instrument_header)
+  M-H segment 3 at mean T = 99.96 K: Hc(-) = -142 Oe, Hc(+) = 134.6 Oe, Mr(-) = -0.01508 emu, Mr(+) = 0.01643 emu; high-field saturation evidence = high; largest measured |moment| = 0.4537 emu (a measured maximum, NOT a saturation magnetization)
+    Mass-normalized Mr(+) = 4.695 emu/g (mass source: instrument_header)
+  M-H segment 4 at mean T = 150.1 K: Hc(-) = -148.8 Oe, Hc(+) = 123.8 Oe, Mr(-) = -0.01497 emu, Mr(+) = 0.01641 emu; high-field saturation evidence = high; largest measured |moment| = 0.4519 emu (a measured maximum, NOT a saturation magnetization)
+    Mass-normalized Mr(+) = 4.689 emu/g (mass source: instrument_header)
+  M-H segment 5 at mean T = 200 K: Hc(-) = -118.9 Oe, Hc(+) = 147.7 Oe, Mr(-) = -0.01751 emu, Mr(+) = 0.01491 emu; high-field saturation evidence = high; largest measured |moment| = 0.4511 emu (a measured maximum, NOT a saturation magnetization)
+    Mass-normalized Mr(+) = 4.261 emu/g (mass source: instrument_header)
+  M-H segment 6 at mean T = 249.9 K: Hc(-) = -132.6 Oe, Hc(+) = 129.6 Oe, Mr(-) = -0.0176 emu, Mr(+) = 0.01794 emu; high-field saturation evidence = high; largest measured |moment| = 0.4547 emu (a measured maximum, NOT a saturation magnetization)
+    Mass-normalized Mr(+) = 5.127 emu/g (mass source: instrument_header)
+  M-H segment 7 at mean T = 264.9 K: Hc(-) = -138.3 Oe, Hc(+) = 137.2 Oe, Mr(-) = -0.01819 emu, Mr(+) = 0.01835 emu; high-field saturation evidence = high; largest measured |moment| = 0.4516 emu (a measured maximum, NOT a saturation magnetization)
+    Mass-normalized Mr(+) = 5.242 emu/g (mass source: instrument_header)
+  M-H segment 8 at mean T = 299.9 K: Hc(-) = -107.5 Oe, Hc(+) = 125.8 Oe, Mr(-) = -0.01729 emu, Mr(+) = 0.0155 emu; high-field saturation evidence = high; largest measured |moment| = 0.4492 emu (a measured maximum, NOT a saturation magnetization)
+    Mass-normalized Mr(+) = 4.428 emu/g (mass source: instrument_header)
+  M-H segment 9 at mean T = 349.7 K: Hc(-) = -132.5 Oe, Hc(+) = 127.1 Oe, Mr(-) = -0.01764 emu, Mr(+) = 0.01797 emu; high-field saturation evidence = high; largest measured |moment| = 0.4452 emu (a measured maximum, NOT a saturation magnetization)
+    Mass-normalized Mr(+) = 5.135 emu/g (mass source: instrument_header)
+  M-H segment 10 at mean T = 359.8 K: Hc(-) = -143.6 Oe, Hc(+) = 124 Oe, Mr(-) = -0.01599 emu, Mr(+) = 0.01894 emu; high-field saturation evidence = high; largest measured |moment| = 0.4433 emu (a measured maximum, NOT a saturation magnetization)
+    Mass-normalized Mr(+) = 5.411 emu/g (mass source: instrument_header)
+- XRD experiment 'two_column_xrd_test.xy' (pipeline v1, uploaded 2026-10-08 06:01:36.963491)
+  Measured pattern: 40 points, 2-theta 20 to 23.9 deg, intensity 10 to 100
+  Candidate intensity maxima (local maxima only; NOT assigned to any phase, hkl, lattice or crystallite size): 21 deg (I=100), 22.5 deg (I=80)

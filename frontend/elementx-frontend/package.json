@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "build:production": "node scripts/check-env.mjs && npm run build && node scripts/check-bundle.mjs",
     "check:bundle": "node scripts/check-bundle.mjs",
+    "check:copilot": "node scripts/check-stored-record.mjs",
     "check:contrast": "node scripts/check-contrast.mjs"
   },
   "dependencies": {

@@ -830,6 +830,155 @@
   margin-top: var(--space-3);
 }
 
+/* ---- Stored-record readout: sections and tables ---- */
+
+.msg:has(.record) {
+  max-width: none;
+}
+
+.record {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.record__lead {
+  margin: 0;
+  max-width: 70ch;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.record__section {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.record__heading {
+  font-size: var(--text-base);
+}
+
+.record__block {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.record__block + .record__block {
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--border);
+}
+
+.record__sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.record__note {
+  margin: 0;
+  max-width: 80ch;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.record__table {
+  font-size: var(--text-sm);
+}
+
+.record__table--narrow {
+  width: auto;
+  min-width: 16rem;
+}
+
+.record .data-table th.record__rowhead {
+  background: transparent;
+  color: var(--text);
+  font-size: inherit;
+  font-weight: 500;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.record .data-table thead th {
+  white-space: normal;
+  vertical-align: bottom;
+}
+
+.record .data-table td.num {
+  white-space: nowrap;
+}
+
+.record__cellnote {
+  display: block;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+}
+
+.record .kv dd {
+  white-space: pre-wrap;
+}
+
+.msg__original {
+  margin-top: var(--space-1);
+}
+
+.raw-answer {
+  max-height: 22rem;
+  margin: 0;
+  padding: var(--space-3);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.raw-answer:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ---- Which data a panel of numbers was calculated from ---- */
+
+.analysis-scope {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.analysis-scope__line {
+  margin: 0;
+}
+
+.analysis-scope__line strong {
+  color: var(--text);
+}
+
+.analysis-scope__zoom:empty {
+  display: none;
+}
+
+.analysis-scope__zoom {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border-left: 3px solid var(--info-border);
+  background: var(--info-bg);
+  color: var(--info-text);
+}
+
 /* ---- Disclosure: secondary diagnostics and provenance ---- */
 
 .disclosure {

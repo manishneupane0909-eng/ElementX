@@ -1,0 +1,5 @@
+The language model is not configured, so this is a direct readout of your stored research records (no interpretation applied).
+
+RESEARCH SAMPLES (names only; select one for stored measurement values)
+- Fe2CoGe annealed 48 h (formula: Fe2CoGe), 2 saved experiment(s)
+- Fe2CoGe annealed 48 h (formula: Fe2CoGe), 2 saved experiment(s)

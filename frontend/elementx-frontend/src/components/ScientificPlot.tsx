@@ -37,6 +37,8 @@ interface ScientificPlotProps {
   title?: string
   /** Base file name for exported data and images. */
   exportName?: string
+  /** Called when the visible range changes (null when reset to the full data). */
+  onRangeChange?: (range: [number, number] | null) => void
 }
 
 type Range = [number, number]
@@ -551,8 +553,13 @@ export default function ScientificPlot({
   height = 340,
   title,
   exportName,
+  onRangeChange,
 }: ScientificPlotProps) {
-  const [range, setRange] = useState<Range | null>(null)
+  const [range, setRangeState] = useState<Range | null>(null)
+  const setRange = (next: Range | null) => {
+    setRangeState(next)
+    onRangeChange?.(next)
+  }
   const [enlarged, setEnlarged] = useState(false)
   const dialogRef = useRef<HTMLDialogElement | null>(null)
   const openerRef = useRef<HTMLElement | null>(null)

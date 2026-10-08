@@ -83,6 +83,7 @@ function MeasuredCurve({
   referenceX,
   title,
   exportName,
+  onRangeChange,
 }: {
   data: MeasurementSegmentData | undefined
   xKey: 'field_Oe' | 'temperature_K'
@@ -91,6 +92,7 @@ function MeasuredCurve({
   referenceX?: PlotReferenceLine[]
   title: string
   exportName: string
+  onRangeChange?: (range: [number, number] | null) => void
 }) {
   const points = seriesPoints(data?.[xKey], data?.moment_emu)
   return (
@@ -103,7 +105,42 @@ function MeasuredCurve({
       referenceX={referenceX}
       title={title}
       exportName={exportName}
+      onRangeChange={onRangeChange}
     />
+  )
+}
+
+/**
+ * States which data a panel of numbers was calculated from. Zooming a plot only changes what is
+ * drawn; every value in the panel comes from the backend's analysis of the whole segment.
+ */
+function AnalysisScope({
+  subject,
+  validPoints,
+  zoom,
+  unit,
+  detail,
+}: {
+  subject: string
+  validPoints: number | undefined
+  zoom: [number, number] | null
+  unit: string
+  detail?: string
+}) {
+  const points = validPoints === undefined ? '' : ` (${validPoints} valid points)`
+  return (
+    <div className="analysis-scope">
+      <p className="analysis-scope__line">
+        <strong>Full-analysis results.</strong> Calculated by the backend from the whole {subject}
+        {points}.
+      </p>
+      {detail && <p className="analysis-scope__line">{detail}</p>}
+      <p className="analysis-scope__zoom" role="status">
+        {zoom
+          ? `The plot is zoomed to ${formatNumber(zoom[0], 3)} – ${formatNumber(zoom[1], 3)} ${unit}. Zooming changes the display only; the values beside and below the plot were not recalculated from the visible range.`
+          : ''}
+      </p>
+    </div>
   )
 }
 
@@ -274,6 +311,7 @@ function MtSegmentFigure({
   index: number
   fileName: string
 }) {
+  const [zoom, setZoom] = useState<[number, number] | null>(null)
   return (
     <article className="figure-block">
       <div className="figure__title">
@@ -290,8 +328,15 @@ function MtSegmentFigure({
           xUnit="K"
           title={`M-T segment ${index}`}
           exportName={`${fileStem(fileName)}_MT_segment_${index}`}
+          onRangeChange={setZoom}
         />
         <div className="figure__side">
+          <AnalysisScope
+            subject="M-T segment"
+            validPoints={segment.valid_point_count}
+            zoom={zoom}
+            unit="K"
+          />
           <DataList label={`M-T segment ${index} values`}>
             <ResultRow
               label="Temperature range"
@@ -493,6 +538,8 @@ function MhLoopFigure({
   onDiagnosticsOpenChange: (open: boolean) => void
 }) {
   const temperature = entry.analysis.segment.mean_temperature_K
+  const [zoom, setZoom] = useState<[number, number] | null>(null)
+  const threshold = entry.analysis.high_field.high_field_threshold_Oe
   const loopWarnings = [
     ...entry.analysis.warnings,
     ...entry.analysis.hysteresis.warnings,
@@ -517,8 +564,20 @@ function MhLoopFigure({
           referenceX={mhReferenceLines(entry.analysis.hysteresis)}
           title={`M-H loop, segment ${entry.segment_index} (≈ ${formatNumber(temperature, 1)} K)`}
           exportName={`${fileStem(fileName)}_MH_segment_${entry.segment_index}`}
+          onRangeChange={setZoom}
         />
         <div className="figure__side">
+          <AnalysisScope
+            subject="M-H loop"
+            validPoints={segment?.valid_point_count}
+            zoom={zoom}
+            unit="Oe"
+            detail={
+              typeof threshold === 'number'
+                ? `High-field values use the part of the full loop with |H| ≥ ${formatNumber(threshold, 1)} Oe, as selected by the backend.`
+                : undefined
+            }
+          />
           <HysteresisBlock hysteresis={entry.analysis.hysteresis} />
           <HighFieldBlock
             highField={entry.analysis.high_field}
