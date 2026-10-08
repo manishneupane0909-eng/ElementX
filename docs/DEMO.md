@@ -10,6 +10,7 @@ bundled example files.
 | Data | `frontend/elementx-frontend/public-demo/demo/*.json` (about 0.3 MB) |
 | Generator | `backend/scripts/build_demo_data.py` |
 | Static host | `render.demo.yaml` (a static site; new names; the existing `render.yaml` is untouched) |
+| Live demo | <https://elementx-frontend.onrender.com> |
 
 ## What is real, and what is not
 
@@ -31,14 +32,14 @@ summaries, mass-normalised values and XRD maxima are the backend pipeline's outp
   `PREAMP_` and `VSM_SERIAL_NUMBER`). The public snapshot **removes those five metadata fields and
   nothing else**. The change is listed in the manifest (`redactions`) and in the experiment's
   provenance panel in the app ("Changes in this public copy").
-* The unchanged original remains at `backend/tests/fixtures/`. It is already tracked in git, so it
-  is visible in the repository and its history if the repository is public. If the identifiers
-  should not be public, make that decision separately (replace the fixture, or keep the repository
-  private); this demo does not rewrite history.
+* The unchanged original remains at `backend/tests/fixtures/` because the backend tests and the
+  snapshot generator need it. It is tracked in git, and the repository is public, so the five serial
+  numbers are visible in that file and in the earlier commits that added it on the feature branches.
+  The published demo JSON does not contain them. Cleaning them out of the repository means replacing
+  the fixture and rewriting history, which has not been done.
 * Each experiment records the SHA-256 and size of the unmodified source file.
 * The header carries the instrument's file title and mass entry, a file-open date and software
-  versions. No operator name, institution or path was found. Review it yourself before making the
-  repository public.
+  versions. No operator name, institution or path was found in it.
 * Record dates (for example "Record created 10/8/2026") are fixed constants so the snapshots are
   reproducible. They are not measurement dates.
 
@@ -104,6 +105,12 @@ Nothing is deployed by this repository.
    `connect-src 'self'`) and `nosniff`. The CSP was exercised against the built demo with no
    violations; keep the hash in step if `index.html` changes (`build:demo` checks this).
 4. Add the resulting URL to the README ("Live demo").
+
+The live demo currently served at <https://elementx-frontend.onrender.com> is a build of this demo
+mode. Its static files match the committed snapshots (the manifest and three other snapshot files were
+compared by hash). At the time of writing it did not return the `Content-Security-Policy` and related
+headers defined in `render.demo.yaml`, so those would need to be added under the service's *Headers*
+settings in the Render dashboard if they are wanted.
 
 **Cost.** Render static sites are free (bandwidth and build-minute allowances apply; check current
 limits). The demo uses no free web-service instance hours, no spin-down and no keep-alive pings.
