@@ -1,7 +1,5 @@
 import ThemeToggle from '../components/shell/ThemeToggle'
 import Button from '../components/ui/Button'
-import { REPOSITORY_URL } from './demoMode'
-
 interface DemoLandingProps {
   onEnter: () => void
 }
@@ -61,12 +59,6 @@ export default function DemoLanding({ onEnter }: DemoLandingProps) {
             </p>
           </section>
         </div>
-
-        <p className="demo-landing__small">
-          <a href={REPOSITORY_URL} target="_blank" rel="noopener noreferrer">
-            Source code and documentation on GitHub
-          </a>
-        </p>
       </main>
     </div>
   )
