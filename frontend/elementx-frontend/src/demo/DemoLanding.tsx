@@ -1,5 +1,6 @@
 import ThemeToggle from '../components/shell/ThemeToggle'
 import Button from '../components/ui/Button'
+import { ROUTE_HASH } from './route'
 interface DemoLandingProps {
   onEnter: () => void
 }
@@ -11,7 +12,7 @@ export default function DemoLanding({ onEnter }: DemoLandingProps) {
       <div className="auth-theme">
         <ThemeToggle />
       </div>
-      <main className="demo-landing__main" id="main-content">
+      <main className="demo-landing__main" id="main-content" tabIndex={-1}>
         <p className="auth-brand">ElementX</p>
         <p>
           <span className="demo-tag">Portfolio demo</span>
@@ -27,7 +28,10 @@ export default function DemoLanding({ onEnter }: DemoLandingProps) {
         <p>
           <Button variant="primary" onClick={onEnter} autoFocus>
             Explore Demo
-          </Button>
+          </Button>{' '}
+          <a className="secondary-btn demo-landing__about" href={ROUTE_HASH.about}>
+            About ElementX
+          </a>
         </p>
 
         <div className="demo-landing__cols">

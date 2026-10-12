@@ -8,6 +8,10 @@ renders the stored results as interactive plots and tables.
 **Live demo: [elementx-frontend.onrender.com](https://elementx-frontend.onrender.com)**
 (a static, read-only portfolio demo: no sign-in, no backend, a real Fe2CoGe measurement)
 
+The demo has a start page, an About page (`/#about`) that explains the
+project and the difference between the demo and the complete application, and the read-only workspace
+(`/#explore`).
+
 Core technologies: Python, FastAPI, NumPy, SciPy, SQLAlchemy/SQLite, pymatgen and the Materials Project
 API on the back end; React 19, TypeScript, Vite and Recharts on the front end.
 

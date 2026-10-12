@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import AboutPage from './demo/AboutPage'
 import DemoLanding from './demo/DemoLanding'
 import DemoMagnetometry from './demo/DemoMagnetometry'
 import { DEMO_MODE } from './demo/demoMode'
+import { ROUTE_TITLE, navigateTo, useDemoRoute } from './demo/route'
 import { useAuth } from './auth/useAuth'
 import AuthScreen from './components/AuthScreen'
 import AppShell from './components/shell/AppShell'
@@ -79,25 +81,24 @@ function Workspace({ onExitDemo }: { onExitDemo?: () => void }) {
 
 function App() {
   const { status, user } = useAuth()
-  // `#explore` links straight into the demo workspace.
-  const [entered, setEntered] = useState(() => window.location.hash === '#explore')
+  // Demo pages are hash routes: `#about`, `#explore`, or the start page (see demo/route.ts).
+  const route = useDemoRoute()
+  const shownRoute = useRef(route)
+
+  useEffect(() => {
+    if (!DEMO_MODE) return
+    document.title = ROUTE_TITLE[route]
+    // On a page change (not on first load): scroll to the top and move focus to the new page.
+    if (shownRoute.current === route) return
+    shownRoute.current = route
+    window.scrollTo(0, 0)
+    document.getElementById('main-content')?.focus({ preventScroll: true })
+  }, [route])
 
   if (DEMO_MODE) {
-    return entered ? (
-      <Workspace
-        onExitDemo={() => {
-          window.history.replaceState(null, '', window.location.pathname + window.location.search)
-          setEntered(false)
-        }}
-      />
-    ) : (
-      <DemoLanding
-        onEnter={() => {
-          window.history.replaceState(null, '', '#explore')
-          setEntered(true)
-        }}
-      />
-    )
+    if (route === 'explore') return <Workspace onExitDemo={() => navigateTo('landing')} />
+    if (route === 'about') return <AboutPage />
+    return <DemoLanding onEnter={() => navigateTo('explore')} />
   }
 
   if (status === 'checking') {

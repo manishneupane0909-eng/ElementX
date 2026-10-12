@@ -76,7 +76,9 @@ npm run dev:demo        # http://localhost:5173/  (no backend needed)
 npm run build:demo && npx vite preview --mode demo
 ```
 
-`/#explore` opens the workspace directly.
+`/#explore` opens the workspace directly, and `/#about` opens the About page. These are hash routes, so
+they need no server rewrite rule, and the browser's back and forward buttons move between the start
+page, the About page and the workspace.
 
 ## What is disabled, and why
 
