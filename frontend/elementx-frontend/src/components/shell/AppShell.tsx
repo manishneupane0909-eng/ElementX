@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import BrandMark from '../ui/BrandMark'
 import { CollapseIcon, ExpandIcon, LogoutIcon, MenuIcon } from '../ui/Icons'
 import ThemeToggle from './ThemeToggle'
 
@@ -109,10 +110,10 @@ export default function AppShell({
       <aside className="sidebar" id="app-sidebar" aria-label="Application">
         <div className="sidebar__head">
           <span className="sidebar__brand">
-            <span className="sidebar__mark" aria-hidden="true">
-              E
+            <span className="sidebar__mark">
+              <BrandMark size={18} />
             </span>
-            <span className="sidebar__wordmark">ElementX</span>
+            <span className="sidebar__wordmark">Fabrivium</span>
           </span>
           <button
             type="button"

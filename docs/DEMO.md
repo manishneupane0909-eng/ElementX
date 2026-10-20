@@ -1,8 +1,8 @@
-# ElementX portfolio demo (static)
+# Fabrivium public demo (static)
 
-The portfolio demo is the redesigned ElementX frontend running in a read-only mode with **no
-backend**. Everything it shows is a snapshot of what the real ElementX backend returned for two
-bundled example files.
+The public site is the Fabrivium frontend running in a read-only mode with **no backend**. Everything
+it shows is a snapshot of what the analysis backend returned for two bundled example files. The
+GitHub repository and Python services still use the historical ElementX identifiers.
 
 | | |
 |---|---|
@@ -10,7 +10,7 @@ bundled example files.
 | Data | `frontend/elementx-frontend/public-demo/demo/*.json` (about 0.3 MB) |
 | Generator | `backend/scripts/build_demo_data.py` |
 | Static host | `render.demo.yaml` (a static site; new names; the existing `render.yaml` is untouched) |
-| Live demo | <https://elementx-frontend.onrender.com> |
+| Live site | <https://www.fabrivium.com> |
 
 ## What is real, and what is not
 
@@ -81,29 +81,17 @@ they need no server rewrite rule, and the browser's back and forward buttons mov
 page, the About page and the workspace.
 
 `/schedule` is a public booking path (not a hash route). The landing and About pages link to it with
-the label “Schedule a Meeting”. Opening `/schedule` or `/schedule/` sends the browser to
-<https://calendly.com/manishneupane0909/30min>. Calendly is not embedded. The demo build includes
-`public-demo/schedule/index.html` as a fallback redirect page for local preview and for hosts that
-serve `index.html` from that folder.
+the label “Schedule a Conversation”. Opening `/schedule` or `/schedule/` sends the browser to
+<https://calendly.com/manishneupane0909/30min>. Calendly is not embedded.
 
-On **Render Static Sites**, direct navigation to `/schedule` is an HTTP 301 only if a Redirect rule
-exists and no file is served at that path. `render.demo.yaml` already lists the rules. The live
-service at <https://elementx-frontend.onrender.com> is not created from that blueprint, so add the
-same rules in the dashboard before relying on the 301:
+The demo build includes `public-demo/_redirects` (Cloudflare Pages) and
+`public-demo/schedule/index.html` as a fallback page. `npm run build:demo` copies both into `dist/`.
+Local `vite` demo/preview also 302s `/schedule` through a small plugin in `vite.config.ts`.
 
-1. Open the `elementx-frontend` static site → **Redirects/Rewrites**.
-2. Add two **Redirect** rules (Action: Redirect), in this order, above any catch-all rewrite:
+On **Cloudflare Pages**, the `_redirects` file is the rule that makes
+<https://www.fabrivium.com/schedule> open Calendly. Verify `dist/_redirects` after a demo build.
 
-| Source | Destination |
-|---|---|
-| `/schedule` | `https://calendly.com/manishneupane0909/30min` |
-| `/schedule/` | `https://calendly.com/manishneupane0909/30min` |
-
-3. Save. Until those rules are saved, a deploy of this branch still works: `/schedule/` (and, on
-   most static hosts, `/schedule`) serves the fallback page, which immediately opens Calendly.
-   Render does not apply a redirect rule when a file already exists at the path, so the fallback
-   page takes precedence for `/schedule/` even after the rules are added. The `/schedule` rule
-   covers visitors who omit the trailing slash if the host does not map that URL to the folder.
+A legacy Render static site is not the public host. Do not change those services for this rebrand.
 
 ## What is disabled, and why
 
@@ -118,26 +106,12 @@ same rules in the dashboard before relying on the 301:
 Disabled controls are removed from the screen rather than shown greyed out. `authFetch` also throws
 in demo mode, so a stray backend call fails loudly instead of reaching a network.
 
-## Deploy to Render (static site)
+## Deploy (Cloudflare Pages)
 
-Nothing is deployed by this repository.
+The public site is Cloudflare Pages, root `frontend/elementx-frontend`, build `npm ci && npm run build:demo`,
+output `dist`. `_redirects` in that output sends `/schedule` to Calendly.
 
-1. In the Render dashboard choose **New → Blueprint**, pick this repository and the branch to
-   publish, and set the **Blueprint file path** to `render.demo.yaml`. (Alternatively, **New →
-   Static Site** with root directory `frontend/elementx-frontend`, build command
-   `npm ci && npm run build:demo`, publish directory `dist`.)
-2. Keep **auto-deploy off** if you want manual control. No environment variables, disk or database
-   are needed. Set `NODE_VERSION` to a Node release that satisfies Vite 7 (`^20.19` or `>=22.12`).
-3. The blueprint also sets a Content-Security-Policy (script hash for the inline theme script,
-   `connect-src 'self'`) and `nosniff`. The CSP was exercised against the built demo with no
-   violations; keep the hash in step if `index.html` changes (`build:demo` checks this).
-4. Add the resulting URL to the README ("Live demo").
-
-The live demo currently served at <https://elementx-frontend.onrender.com> is a build of this demo
-mode. Its static files match the committed snapshots (the manifest and three other snapshot files were
-compared by hash). At the time of writing it did not return the `Content-Security-Policy` and related
-headers defined in `render.demo.yaml`, so those would need to be added under the service's *Headers*
-settings in the Render dashboard if they are wanted.
+A historical Render static site still exists. Do not change those services for this rebrand.
 
 **Cost.** Render static sites are free (bandwidth and build-minute allowances apply; check current
 limits). The demo uses no free web-service instance hours, no spin-down and no keep-alive pings.

@@ -6,15 +6,15 @@ interface ScheduleLinkProps {
 }
 
 /**
- * Booking link used on the demo landing and About pages. Points at the public /schedule
- * path, not at Calendly directly, so the address people copy stays on this site.
+ * Booking link used on the public pages. Points at the public /schedule path, not at
+ * Calendly directly, so the address people copy stays on this site.
  */
 export default function ScheduleLink({ className }: ScheduleLinkProps) {
   const classes = ['schedule-link', className].filter(Boolean).join(' ')
   return (
     <a className={classes} href={SCHEDULE_PATH}>
       <CalendarIcon />
-      Schedule a Meeting
+      Schedule a Conversation
     </a>
   )
 }

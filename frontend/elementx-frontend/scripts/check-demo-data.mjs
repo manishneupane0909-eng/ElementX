@@ -182,6 +182,15 @@ if (distIndex !== -1) {
       }
     }
     check(!/https?:\/\/(?!www\.w3\.org)[^"' ]*\/api\b/.test(indexHtml), 'index.html references an API host')
+    const redirectsFile = join(distDir, '_redirects')
+    check(existsSync(redirectsFile), 'dist/_redirects is missing (Cloudflare Pages booking path)')
+    if (existsSync(redirectsFile)) {
+      const redirects = readFileSync(redirectsFile, 'utf8')
+      check(
+        /\/schedule\s+https:\/\/calendly\.com\/manishneupane0909\/30min\s+302/.test(redirects),
+        'dist/_redirects must 302 /schedule to the Calendly booking URL',
+      )
+    }
     const schedulePage = join(distDir, 'schedule', 'index.html')
     check(existsSync(schedulePage), 'dist/schedule/index.html is missing')
     if (existsSync(schedulePage)) {

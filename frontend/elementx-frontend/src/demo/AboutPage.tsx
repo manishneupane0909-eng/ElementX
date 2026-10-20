@@ -1,6 +1,8 @@
 import ThemeToggle from '../components/shell/ThemeToggle'
+import BrandMark from '../components/ui/BrandMark'
 import { ROUTE_HASH } from './route'
 import ScheduleLink from './ScheduleLink'
+import SiteFooter from './SiteFooter'
 
 interface CapabilityRow {
   name: string
@@ -56,7 +58,7 @@ const CAPABILITIES: CapabilityRow[] = [
 ]
 
 /**
- * About page of the portfolio demo. It is a plain reading page: no sign-in, no network calls.
+ * About page of the public demo. It is a plain reading page: no sign-in, no network calls.
  * Navigation uses real links so the address bar, back button and direct URLs all work.
  */
 export default function AboutPage() {
@@ -64,12 +66,13 @@ export default function AboutPage() {
     <div className="about">
       <header className="about__bar">
         <a className="about__brand" href={ROUTE_HASH.landing}>
-          ElementX
+          <BrandMark size={22} />
+          Fabrivium
         </a>
-        <nav className="about__nav" aria-label="Demo pages">
+        <nav className="about__nav" aria-label="Site">
           <ul>
             <li>
-              <a href={ROUTE_HASH.landing}>Start page</a>
+              <a href={ROUTE_HASH.landing}>Home</a>
             </li>
             <li>
               <a href={ROUTE_HASH.about} aria-current="page">
@@ -77,7 +80,7 @@ export default function AboutPage() {
               </a>
             </li>
             <li>
-              <a href={ROUTE_HASH.explore}>Explore the demo</a>
+              <a href={ROUTE_HASH.explore}>Explore Demo</a>
             </li>
             <li>
               <ScheduleLink />
@@ -91,34 +94,27 @@ export default function AboutPage() {
         <p>
           <span className="demo-tag">Early-stage project</span>
         </p>
-        <h1 className="about__title">Making experimental materials research easier.</h1>
+        <h1 className="about__title">About Fabrivium</h1>
         <p className="about__lede">
-          ElementX is an early-stage scientific computing platform designed to simplify how
-          materials researchers analyze, visualize, and organize experimental data.
+          Fabrivium is a scientific computing platform that automates experimental data analysis
+          and helps materials researchers organize, visualize, and understand their measurements.
         </p>
         <p>
-          It is a prototype and a possible startup direction, not an established company. There are
-          no customers, paid plans or commercial service today.
+          It is an early-stage prototype and a possible startup direction, not an established
+          company. There are no customers, paid plans or commercial service today.
         </p>
 
-        <section aria-labelledby="about-problem">
-          <h2 id="about-problem">The problem</h2>
-          <p>
-            Scientific instruments produce complex datasets. Researchers often rely on multiple
-            tools and repeated manual steps to clean measurements, calculate properties, visualize
-            results, and keep analysis organized.
-          </p>
-        </section>
-
         <section aria-labelledby="about-why">
-          <h2 id="about-why">Why I built ElementX</h2>
+          <h2 id="about-why">Why I built it</h2>
           <p>
-            ElementX grew out of four years of undergraduate research on rare-earth-free permanent
+            Fabrivium grew out of four years of undergraduate research on rare-earth-free permanent
             magnets, primarily MnBi and MnAl.
           </p>
           <p>
-            I worked with experimental measurements, materials characterization, and scientific
-            data analysis, and wanted to automate the repetitive parts of that process.
+            The work meant repetitive analysis, disconnected instrument files, and too much time
+            spent reconstructing how a number was obtained. I wanted a reproducible scientific
+            workflow: read the measurement, run a documented pipeline, and keep the provenance with
+            the result.
           </p>
           <p className="about__byline">
             Manish Neupane · <a href="https://mneupane.com">mneupane.com</a>
@@ -128,7 +124,7 @@ export default function AboutPage() {
         <section aria-labelledby="about-today">
           <h2 id="about-today">What works today</h2>
           <p>
-            ElementX exists in two forms. The <strong>complete application</strong> is a FastAPI
+            Fabrivium exists in two forms. The <strong>complete application</strong> is a FastAPI
             and Python backend with a React and TypeScript frontend, and it is where uploads,
             accounts and saved records live. This <strong>public demo</strong> is read-only: it
             shows stored results that the backend produced from two example files, and it makes no
@@ -161,33 +157,31 @@ export default function AboutPage() {
         <section aria-labelledby="about-next">
           <h2 id="about-next">What comes next</h2>
           <p>
-            The long-term direction is a more integrated and reproducible analysis workspace for
-            materials researchers.
+            The long-term vision is AI-assisted materials discovery through predictive modeling,
+            active learning, and experimental validation.
           </p>
           <p>
-            That is a direction, not a set of shipped features. Nothing beyond the capabilities
-            above exists yet. Feedback from researchers on what would actually save them time will
+            That is a future goal, not a feature that exists today. Nothing beyond the capabilities
+            above is shipped. Feedback from researchers on what would actually save them time will
             shape what gets built.
           </p>
         </section>
 
-        <section aria-labelledby="about-explore" className="about__explore">
-          <h2 id="about-explore">Explore ElementX</h2>
+        <section aria-labelledby="about-connect">
+          <h2 id="about-connect">Connect</h2>
           <p>
-            The demo opens on a real magnetometry measurement. It needs no account and nothing is
-            saved.
+            If you are a materials researcher, a scientific software engineer, a potential
+            collaborator, or a mentor, I would like to hear from you.
           </p>
           <p className="about__actions">
-            <a className="primary-btn about__cta" href={ROUTE_HASH.explore}>
-              Explore the interactive demo
+            <ScheduleLink className="schedule-link--button" />
+            <a className="secondary-btn about__cta" href={ROUTE_HASH.explore}>
+              Explore Demo
             </a>
-            <a className="secondary-btn about__cta" href={ROUTE_HASH.landing}>
-              Back to the start page
-            </a>
-            <ScheduleLink className="about__schedule" />
           </p>
         </section>
       </main>
+      <SiteFooter />
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
  * (`/#about`, `/#explore`) and the browser's back and forward buttons work on any static host.
  *
  *   (no hash) or `#`  landing page
- *   `#about`          About ElementX
+ *   `#about`          About Fabrivium
  *   `#explore`        read-only workspace
  */
 export type DemoRoute = 'landing' | 'about' | 'explore'
@@ -23,9 +23,9 @@ export function parseRoute(hash: string): DemoRoute {
 }
 
 export const ROUTE_TITLE: Record<DemoRoute, string> = {
-  landing: 'ElementX: Portfolio demo',
-  about: 'About ElementX: Portfolio demo',
-  explore: 'ElementX: Portfolio demo',
+  landing: 'Fabrivium — From experimental data to materials discovery',
+  about: 'About Fabrivium',
+  explore: 'Fabrivium — Demo',
 }
 
 /** Current route, kept in step with the address bar and the history buttons. */

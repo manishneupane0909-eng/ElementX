@@ -1,21 +1,29 @@
-# ElementX
+# Fabrivium
 
-ElementX is a scientific research and analysis platform for experimental materials science. It reads
-instrument files (Quantum Design magnetometry, XRD patterns), runs a documented analysis pipeline in
-Python, and stores every result with the provenance needed to trust it. A React/TypeScript front end
+From experimental data to materials discovery.
+
+Fabrivium is a scientific computing platform that automates experimental data analysis and helps
+materials researchers organize, visualize, and understand their measurements. It reads instrument
+files (Quantum Design magnetometry, XRD patterns), runs a documented analysis pipeline in Python,
+and stores every result with the provenance needed to trust it. A React/TypeScript front end
 renders the stored results as interactive plots and tables.
 
-**Live demo: [elementx-frontend.onrender.com](https://elementx-frontend.onrender.com)**
-(a static, read-only portfolio demo: no sign-in, no backend, a real Fe2CoGe measurement)
+The long-term vision is AI-assisted materials discovery through predictive modeling, active learning,
+and experimental validation. That is a future goal, not a feature that exists today.
 
-The demo has a start page, an About page (`/#about`) that explains the
-project and the difference between the demo and the complete application, the read-only workspace
-(`/#explore`), and a booking path (`/schedule`) that opens a Calendly page.
+**Website: [fabrivium.com](https://www.fabrivium.com)**
+(a static, read-only demo: no sign-in, no backend, a real Fe2CoGe measurement)
+
+The site has a start page, an About page (`/#about`), the read-only workspace (`/#explore`), and a
+booking path (`/schedule`) that opens a Calendly page.
+
+This GitHub repository is still named ElementX. Internal module names, API paths, environment
+variables, and the Python backend keep those historical identifiers.
 
 Core technologies: Python, FastAPI, NumPy, SciPy, SQLAlchemy/SQLite, pymatgen and the Materials Project
 API on the back end; React 19, TypeScript, Vite and Recharts on the front end.
 
-![ElementX portfolio demo landing page](docs/screenshots/landing-dark.png)
+![Fabrivium public demo landing page](docs/screenshots/landing-dark.png)
 
 | Magnetometry analysis (dark theme) | Interactive hysteresis loop (light theme) |
 |---|---|
@@ -25,7 +33,7 @@ API on the back end; React 19, TypeScript, Vite and Recharts on the front end.
 |---|---|
 | ![Synthetic XRD test pattern, labelled as not a laboratory measurement](docs/screenshots/xrd-synthetic-light.png) | ![Stored-record readout in the Physics Copilot](docs/screenshots/copilot-readout-dark.png) |
 
-## What ElementX does
+## What Fabrivium does
 
 The table separates the complete application from the public static demo, so neither is read as the
 other.

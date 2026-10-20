@@ -1453,13 +1453,30 @@
   max-width: 46rem;
   display: grid;
   gap: var(--space-4);
+  margin-left: auto;
+  margin-right: auto;
   padding: max(var(--space-6), 8vh) var(--space-4) var(--space-6);
 }
 
-.demo-landing__title {
-  font-size: 1.75rem;
-  line-height: 1.25;
+.demo-landing__brand {
+  display: flex;
+  align-items: center;
   margin: 0;
+  color: var(--secondary);
+}
+
+.demo-landing__title {
+  font-size: 2rem;
+  line-height: 1.2;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.demo-landing__tagline {
+  margin: 0;
+  font-size: var(--text-xl);
+  line-height: 1.35;
+  color: var(--text);
   text-wrap: balance;
 }
 
@@ -1503,7 +1520,8 @@
 }
 
 .demo-landing.auth-shell {
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: stretch;
   min-height: 100vh;
 }
 
@@ -1541,9 +1559,82 @@
   flex-shrink: 0;
 }
 
+.schedule-link--button {
+  min-height: var(--control-height);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.schedule-link--button:hover {
+  background: var(--surface-hover);
+}
+
+.site-footer {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 50rem;
+  width: 100%;
+  margin: auto auto 0;
+  padding: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.site-footer__brand {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--secondary);
+}
+
+.site-footer__tag {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+
+.site-footer__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.site-footer__nav a {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-underline-offset: 3px;
+}
+
+.site-footer__nav a:hover {
+  color: var(--text);
+}
+
+.site-footer .schedule-link {
+  font-size: var(--text-sm);
+}
+
 .about {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   background: var(--canvas);
+}
+
+.about .site-footer {
+  max-width: 50rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .about__bar {
@@ -1558,6 +1649,9 @@
 }
 
 .about__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   font-weight: 600;
