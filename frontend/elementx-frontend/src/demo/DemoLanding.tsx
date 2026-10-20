@@ -1,6 +1,7 @@
 import ThemeToggle from '../components/shell/ThemeToggle'
 import Button from '../components/ui/Button'
 import { ROUTE_HASH } from './route'
+import ScheduleLink from './ScheduleLink'
 interface DemoLandingProps {
   onEnter: () => void
 }
@@ -25,13 +26,14 @@ export default function DemoLanding({ onEnter }: DemoLandingProps) {
           stores the results with their provenance. This demo shows stored results from that
           pipeline for two example files. It needs no account and no server connection.
         </p>
-        <p>
+        <p className="demo-landing__actions">
           <Button variant="primary" onClick={onEnter} autoFocus>
             Explore Demo
-          </Button>{' '}
+          </Button>
           <a className="secondary-btn demo-landing__about" href={ROUTE_HASH.about}>
             About ElementX
           </a>
+          <ScheduleLink />
         </p>
 
         <div className="demo-landing__cols">

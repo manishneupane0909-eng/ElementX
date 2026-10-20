@@ -182,6 +182,16 @@ if (distIndex !== -1) {
       }
     }
     check(!/https?:\/\/(?!www\.w3\.org)[^"' ]*\/api\b/.test(indexHtml), 'index.html references an API host')
+    const schedulePage = join(distDir, 'schedule', 'index.html')
+    check(existsSync(schedulePage), 'dist/schedule/index.html is missing')
+    if (existsSync(schedulePage)) {
+      const scheduleHtml = readFileSync(schedulePage, 'utf8')
+      check(
+        scheduleHtml.includes('https://calendly.com/manishneupane0909/30min'),
+        'dist/schedule/index.html must send visitors to the Calendly booking URL',
+      )
+      check(!/<script/i.test(scheduleHtml), 'dist/schedule/index.html must not use inline script (CSP)')
+    }
   }
 }
 

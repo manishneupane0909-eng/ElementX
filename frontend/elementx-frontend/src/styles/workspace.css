@@ -1512,9 +1512,33 @@
 }
 
 /* ---- About page (demo only) ---- */
+.demo-landing__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .demo-landing__about {
   text-decoration: none;
-  margin-left: var(--space-1);
+}
+
+.schedule-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--accent-text);
+  font-size: var(--text-base);
+  font-weight: 600;
+  text-underline-offset: 3px;
+}
+
+.schedule-link:hover {
+  color: var(--accent-hover);
+}
+
+.schedule-link .icon {
+  flex-shrink: 0;
 }
 
 .about {
@@ -1694,6 +1718,15 @@
   min-height: calc(var(--control-height) + 0.25rem);
   padding: 0 var(--space-4);
   font-size: var(--text-md);
+}
+
+.about__nav .schedule-link {
+  display: inline-flex;
+  padding: var(--space-1) 0;
+}
+
+.about__schedule {
+  align-self: center;
 }
 
 @media (max-width: 40rem) {

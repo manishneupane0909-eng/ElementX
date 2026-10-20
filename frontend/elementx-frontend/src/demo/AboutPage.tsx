@@ -1,5 +1,6 @@
 import ThemeToggle from '../components/shell/ThemeToggle'
 import { ROUTE_HASH } from './route'
+import ScheduleLink from './ScheduleLink'
 
 interface CapabilityRow {
   name: string
@@ -77,6 +78,9 @@ export default function AboutPage() {
             </li>
             <li>
               <a href={ROUTE_HASH.explore}>Explore the demo</a>
+            </li>
+            <li>
+              <ScheduleLink />
             </li>
           </ul>
         </nav>
@@ -180,6 +184,7 @@ export default function AboutPage() {
             <a className="secondary-btn about__cta" href={ROUTE_HASH.landing}>
               Back to the start page
             </a>
+            <ScheduleLink className="about__schedule" />
           </p>
         </section>
       </main>

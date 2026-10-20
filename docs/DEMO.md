@@ -80,6 +80,31 @@ npm run build:demo && npx vite preview --mode demo
 they need no server rewrite rule, and the browser's back and forward buttons move between the start
 page, the About page and the workspace.
 
+`/schedule` is a public booking path (not a hash route). The landing and About pages link to it with
+the label “Schedule a Meeting”. Opening `/schedule` or `/schedule/` sends the browser to
+<https://calendly.com/manishneupane0909/30min>. Calendly is not embedded. The demo build includes
+`public-demo/schedule/index.html` as a fallback redirect page for local preview and for hosts that
+serve `index.html` from that folder.
+
+On **Render Static Sites**, direct navigation to `/schedule` is an HTTP 301 only if a Redirect rule
+exists and no file is served at that path. `render.demo.yaml` already lists the rules. The live
+service at <https://elementx-frontend.onrender.com> is not created from that blueprint, so add the
+same rules in the dashboard before relying on the 301:
+
+1. Open the `elementx-frontend` static site → **Redirects/Rewrites**.
+2. Add two **Redirect** rules (Action: Redirect), in this order, above any catch-all rewrite:
+
+| Source | Destination |
+|---|---|
+| `/schedule` | `https://calendly.com/manishneupane0909/30min` |
+| `/schedule/` | `https://calendly.com/manishneupane0909/30min` |
+
+3. Save. Until those rules are saved, a deploy of this branch still works: `/schedule/` (and, on
+   most static hosts, `/schedule`) serves the fallback page, which immediately opens Calendly.
+   Render does not apply a redirect rule when a file already exists at the path, so the fallback
+   page takes precedence for `/schedule/` even after the rules are added. The `/schedule` rule
+   covers visitors who omit the trailing slash if the host does not map that URL to the folder.
+
 ## What is disabled, and why
 
 | Disabled | Reason |
