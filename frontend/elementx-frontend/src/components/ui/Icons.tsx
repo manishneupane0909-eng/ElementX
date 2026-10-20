@@ -83,3 +83,10 @@ export const MenuIcon = () => (
     <path d="M2.5 4h11M2.5 8h11M2.5 12h11" />
   </Icon>
 )
+
+export const CalendarIcon = () => (
+  <Icon>
+    <rect x="2.5" y="3.5" width="11" height="10.5" rx="1.25" />
+    <path d="M2.5 6.75h11M5.5 2.5v2.25M10.5 2.5v2.25" />
+  </Icon>
+)

@@ -79,12 +79,11 @@
   width: 1.75rem;
   height: 1.75rem;
   flex-shrink: 0;
-  border: 1px solid var(--control-border);
-  border-radius: var(--radius);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--text);
+  color: var(--secondary);
+}
+
+.sidebar__mark .brand-mark {
+  display: block;
 }
 
 .sidebar__wordmark {
@@ -635,6 +634,9 @@
 }
 
 .auth-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   font-weight: 600;

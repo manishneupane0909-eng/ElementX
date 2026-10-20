@@ -1,8 +1,8 @@
-# ElementX portfolio demo (static)
+# Fabrivium public demo (static)
 
-The portfolio demo is the redesigned ElementX frontend running in a read-only mode with **no
-backend**. Everything it shows is a snapshot of what the real ElementX backend returned for two
-bundled example files.
+The public site is the Fabrivium frontend running in a read-only mode with **no backend**. Everything
+it shows is a snapshot of what the analysis backend returned for two bundled example files. The
+GitHub repository and Python services still use the historical ElementX identifiers.
 
 | | |
 |---|---|
@@ -10,7 +10,7 @@ bundled example files.
 | Data | `frontend/elementx-frontend/public-demo/demo/*.json` (about 0.3 MB) |
 | Generator | `backend/scripts/build_demo_data.py` |
 | Static host | `render.demo.yaml` (a static site; new names; the existing `render.yaml` is untouched) |
-| Live demo | <https://elementx-frontend.onrender.com> |
+| Live site | <https://www.fabrivium.com> |
 
 ## What is real, and what is not
 
@@ -76,7 +76,22 @@ npm run dev:demo        # http://localhost:5173/  (no backend needed)
 npm run build:demo && npx vite preview --mode demo
 ```
 
-`/#explore` opens the workspace directly.
+`/#explore` opens the workspace directly, and `/#about` opens the About page. These are hash routes, so
+they need no server rewrite rule, and the browser's back and forward buttons move between the start
+page, the About page and the workspace.
+
+`/schedule` is a public booking path (not a hash route). The landing and About pages link to it with
+the label “Schedule a Conversation”. Opening `/schedule` or `/schedule/` sends the browser to
+<https://calendly.com/manishneupane0909/30min>. Calendly is not embedded.
+
+The demo build includes `public-demo/_redirects` (Cloudflare Pages) and
+`public-demo/schedule/index.html` as a fallback page. `npm run build:demo` copies both into `dist/`.
+Local `vite` demo/preview also 302s `/schedule` through a small plugin in `vite.config.ts`.
+
+On **Cloudflare Pages**, the `_redirects` file is the rule that makes
+<https://www.fabrivium.com/schedule> open Calendly. Verify `dist/_redirects` after a demo build.
+
+A legacy Render static site is not the public host. Do not change those services for this rebrand.
 
 ## What is disabled, and why
 
@@ -91,26 +106,12 @@ npm run build:demo && npx vite preview --mode demo
 Disabled controls are removed from the screen rather than shown greyed out. `authFetch` also throws
 in demo mode, so a stray backend call fails loudly instead of reaching a network.
 
-## Deploy to Render (static site)
+## Deploy (Cloudflare Pages)
 
-Nothing is deployed by this repository.
+The public site is Cloudflare Pages, root `frontend/elementx-frontend`, build `npm ci && npm run build:demo`,
+output `dist`. `_redirects` in that output sends `/schedule` to Calendly.
 
-1. In the Render dashboard choose **New → Blueprint**, pick this repository and the branch to
-   publish, and set the **Blueprint file path** to `render.demo.yaml`. (Alternatively, **New →
-   Static Site** with root directory `frontend/elementx-frontend`, build command
-   `npm ci && npm run build:demo`, publish directory `dist`.)
-2. Keep **auto-deploy off** if you want manual control. No environment variables, disk or database
-   are needed. Set `NODE_VERSION` to a Node release that satisfies Vite 7 (`^20.19` or `>=22.12`).
-3. The blueprint also sets a Content-Security-Policy (script hash for the inline theme script,
-   `connect-src 'self'`) and `nosniff`. The CSP was exercised against the built demo with no
-   violations; keep the hash in step if `index.html` changes (`build:demo` checks this).
-4. Add the resulting URL to the README ("Live demo").
-
-The live demo currently served at <https://elementx-frontend.onrender.com> is a build of this demo
-mode. Its static files match the committed snapshots (the manifest and three other snapshot files were
-compared by hash). At the time of writing it did not return the `Content-Security-Policy` and related
-headers defined in `render.demo.yaml`, so those would need to be added under the service's *Headers*
-settings in the Render dashboard if they are wanted.
+A historical Render static site still exists. Do not change those services for this rebrand.
 
 **Cost.** Render static sites are free (bandwidth and build-minute allowances apply; check current
 limits). The demo uses no free web-service instance hours, no spin-down and no keep-alive pings.

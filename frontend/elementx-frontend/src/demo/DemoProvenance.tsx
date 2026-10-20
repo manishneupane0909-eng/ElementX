@@ -53,7 +53,7 @@ export default function DemoProvenance({ provenance }: { provenance?: Provenance
           <div>
             <dt>Analysis</dt>
             <dd>
-              ElementX {provenance.analysis_pipeline}, run on the backend and stored as a snapshot
+              Analysis pipeline {provenance.analysis_pipeline}, run on the backend and stored as a snapshot
             </dd>
           </div>
           <div>

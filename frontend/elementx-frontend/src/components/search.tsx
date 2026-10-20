@@ -139,7 +139,7 @@ export default function Search({ elements, normalizeSymbol }: SearchProps) {
 
       <Section
         title="Element lookup"
-        description="Standard atomic mass from the periodic table built into ElementX."
+        description="Standard atomic mass from the periodic table built into Fabrivium."
       >
         <div className="control-row">
           <div className="form-field form-field--sm">
@@ -177,7 +177,7 @@ export default function Search({ elements, normalizeSymbol }: SearchProps) {
         description={
           DEMO_MODE
             ? 'Curated entries retrieved from Materials Project in advance. Choose one of the example formulas.'
-            : 'Queries Materials Project through the ElementX backend by chemical formula.'
+            : 'Queries Materials Project through the analysis backend by chemical formula.'
         }
       >
         <form

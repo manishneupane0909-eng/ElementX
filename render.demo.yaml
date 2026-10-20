@@ -21,6 +21,16 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22.12.0 # Vite 7 needs ^20.19 || >=22.12; confirm the value is offered in the dashboard
+    # /schedule is a public booking path. Direct visits need these rules on Render Static
+    # Sites (hash routes will not cover them). If a file exists at the path, Render serves
+    # that file instead; public-demo/schedule/index.html is the fallback redirect page.
+    routes:
+      - type: redirect
+        source: /schedule
+        destination: https://calendly.com/manishneupane0909/30min
+      - type: redirect
+        source: /schedule/
+        destination: https://calendly.com/manishneupane0909/30min
     headers:
       - path: /*
         name: Content-Security-Policy

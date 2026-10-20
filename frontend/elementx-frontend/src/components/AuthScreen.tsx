@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useAuth } from '../auth/useAuth'
 import ThemeToggle from './shell/ThemeToggle'
+import BrandMark from './ui/BrandMark'
 import Button from './ui/Button'
 import Notice from './ui/Notice'
 import TextField from './ui/TextField'
@@ -67,7 +68,10 @@ export default function AuthScreen() {
       </div>
       <main className="auth-main">
         <section className="auth-panel" aria-labelledby="auth-title">
-          <p className="auth-brand">ElementX</p>
+          <p className="auth-brand">
+            <BrandMark size={20} />
+            Fabrivium
+          </p>
           <header className="auth-header">
             <h1 id="auth-title">{isRegister ? 'Create account' : 'Sign in'}</h1>
             <p>
@@ -138,7 +142,7 @@ export default function AuthScreen() {
           </form>
 
           <p className="auth-switch">
-            {isRegister ? 'Already have an account?' : 'New to ElementX?'}{' '}
+            {isRegister ? 'Already have an account?' : 'New to Fabrivium?'}{' '}
             <Button
               variant="link"
               onClick={() => switchMode(isRegister ? 'login' : 'register')}

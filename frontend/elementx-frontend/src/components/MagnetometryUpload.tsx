@@ -192,7 +192,7 @@ function SampleMassSection({
     <div id={MASS_SECTION_ID} tabIndex={-1} className="mass-section">
       <Section
         title="Sample mass"
-        description="ElementX does not silently choose a mass when sources disagree; every candidate is listed under mass provenance."
+        description="Fabrivium does not silently choose a mass when sources disagree; every candidate is listed under mass provenance."
       >
         {needsConfirmation && (
           <div className="note note--warn" role="alert">

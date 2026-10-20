@@ -50,7 +50,7 @@ async function submit(
       body: JSON.stringify(body),
     })
   } catch {
-    throw new AuthError(0, 'Cannot reach the ElementX server. Check your connection and try again.')
+    throw new AuthError(0, 'Cannot reach the Fabrivium server. Check your connection and try again.')
   }
 
   if (!response.ok) {

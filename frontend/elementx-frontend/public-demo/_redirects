@@ -1,0 +1,4 @@
+# Cloudflare Pages: /schedule is the public booking path.
+# Static files still win if a host serves schedule/index.html first; this rule covers slash-less /schedule.
+/schedule    https://calendly.com/manishneupane0909/30min    302
+/schedule/   https://calendly.com/manishneupane0909/30min    302

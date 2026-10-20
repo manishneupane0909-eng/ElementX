@@ -6,7 +6,7 @@ import AuthProvider from './auth/AuthProvider.tsx'
 import ThemeProvider from './theme/ThemeProvider.tsx'
 import { DEMO_MODE } from './demo/demoMode.ts'
 
-if (DEMO_MODE) document.title = 'ElementX: Portfolio demo'
+if (DEMO_MODE) document.title = 'Fabrivium — From experimental data to materials discovery'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
